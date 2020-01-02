@@ -1,0 +1,12 @@
+version: '2'
+services:
+  tests:
+    image: 'canyan/rating-engine:tests'
+    command: ["sleep", "3600"]
+    volumes:
+    - .:/src
+    environment:
+    - API_URL=http://rating-api:8000/graphql
+    - MESSAGEBUS_URI=pyamqp://user:password@rabbitmq:5672//
+    - MONGODB_URI=mongodb://mongodb:27017
+    - MONGODB_DB=rating_api

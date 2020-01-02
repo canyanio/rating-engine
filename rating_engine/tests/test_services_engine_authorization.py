@@ -270,7 +270,9 @@ async def test_authorization_failed_account_balance_insufficient(engine, graphql
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_account_virtual_balance_insufficient(engine, graphql):
+async def test_authorization_failed_account_virtual_balance_insufficient(
+    engine, graphql
+):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
@@ -324,7 +326,9 @@ async def test_authorization_failed_account_virtual_balance_insufficient(engine,
         % {'tenant': dumps(tenant), 'account_tag': dumps(account_tag)}
     )
     #
-    timestamp_begin = timezone("UTC").localize(datetime.utcnow()) - timedelta(seconds=15)
+    timestamp_begin = timezone("UTC").localize(datetime.utcnow()) - timedelta(
+        seconds=15
+    )
     request = schema.BeginTransactionRequest(
         tenant=tenant,
         transaction_tag=transaction_tag,
@@ -349,7 +353,9 @@ async def test_authorization_failed_account_virtual_balance_insufficient(engine,
 
 
 @pytest.mark.asyncio
-async def test_authorization_successful_account_virtual_balance_sufficient(engine, graphql):
+async def test_authorization_successful_account_virtual_balance_sufficient(
+    engine, graphql
+):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
@@ -403,7 +409,9 @@ async def test_authorization_successful_account_virtual_balance_sufficient(engin
         % {'tenant': dumps(tenant), 'account_tag': dumps(account_tag)}
     )
     #
-    timestamp_begin = timezone("UTC").localize(datetime.utcnow()) - timedelta(seconds=15)
+    timestamp_begin = timezone("UTC").localize(datetime.utcnow()) - timedelta(
+        seconds=15
+    )
     request = schema.BeginTransactionRequest(
         tenant=tenant,
         transaction_tag=transaction_tag,

@@ -1,0 +1,5 @@
+FROM python:3.8-alpine3.10
+WORKDIR /src
+COPY . /src
+
+RUN apk add build-base gcc python3-dev musl-dev libffi-dev make && pip install -r /src/requirements.txt

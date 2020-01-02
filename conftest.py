@@ -17,12 +17,14 @@ MONGODB_DB = os.getenv("MONGODB_DB", "rating_api")
 
 @pytest.fixture(scope="function")
 async def app():
-    app_obj = get_app(dict(
-        api_url=API_URL,
-        api_username=None,
-        api_password=None,
-        messagebus_uri=MESSAGEBUS_URI,
-    ))
+    app_obj = get_app(
+        dict(
+            api_url=API_URL,
+            api_username=None,
+            api_password=None,
+            messagebus_uri=MESSAGEBUS_URI,
+        )
+    )
     thread = Thread(target=app_obj.run, daemon=True)
     thread.start()
     await asyncio.sleep(0.2)
