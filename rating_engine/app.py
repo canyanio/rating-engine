@@ -37,7 +37,7 @@ class App(object):
         loop.run_until_complete(self._run())
         try:
             loop.run_forever()
-        finally: # pragma: no cover
+        finally:  # pragma: no cover
             loop.shutdown_asyncgens()
 
     async def _run(self):
