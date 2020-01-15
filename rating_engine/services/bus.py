@@ -1,9 +1,14 @@
 import json
 
+from datetime import datetime
+from pytz import timezone
 from typing import Any, Callable, Optional
 
 from aio_pika import connect_robust, Channel, Connection
 from aio_pika.patterns import RPC
+
+
+UTC = timezone('UTC')
 
 
 class JsonRPC(RPC):
@@ -17,9 +22,14 @@ class JsonRPC(RPC):
         return value
 
     def serialize(self, data: Any) -> bytes:
-        return self.SERIALIZER.dumps(data, ensure_ascii=False, default=repr).encode(
-            'utf-8'
-        )
+        return self.SERIALIZER.dumps(
+            data, ensure_ascii=False, default=self.serialize_default
+        ).encode('utf-8')
+
+    def serialize_default(self, v: Any):
+        if isinstance(v, datetime):
+            return v.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+        return repr(v)
 
     def serialize_exception(self, exception: Exception) -> bytes:
         return self.serialize(

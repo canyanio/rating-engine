@@ -433,6 +433,84 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
 
 
 @pytest.mark.asyncio
+async def test_authorization_successful_with_timestamp(engine, graphql):
+    tenant = "default"
+    transaction_tag = "100"
+    account_tag = "1000"
+    destination = "393291234567"
+    #
+    response = await graphql(
+        """
+        mutation {
+            upsertCarrier(
+                tenant:%(tenant)s,
+                carrier_tag:"TESTS",
+                host:"carrier1.canyan.io",
+                port:5060,
+                protocol:UDP
+                active:true
+            ) {
+                id
+            }
+            upsertPricelist(
+                tenant:%(tenant)s,
+                pricelist_tag:"TESTS",
+                currency:EUR
+            ) {
+                id
+            }
+            upsertPricelistRate(
+                tenant:%(tenant)s,
+                pricelist_tag:"TESTS",
+                carrier_tag:"TESTS",
+                prefix:"39"
+                active:true,
+                connect_fee:0,
+                rate:1,
+                rate_increment:1,
+                interval_start:0,
+                description:"TESTS_ALL_DESTINATIONS"
+            ) {
+                id
+            }
+            upsertAccount(
+                tenant: %(tenant)s,
+                account_tag: %(account_tag)s,
+                type: PREPAID,
+                pricelist_tags: ["TESTS"]
+                balance: 20,
+                active: true
+            ) {
+                id
+            }
+        }"""
+        % {'tenant': dumps(tenant), 'account_tag': dumps(account_tag)}
+    )
+    #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
+    timestamp_begin = timestamp_auth - timedelta(seconds=15)
+    request = schema.BeginTransactionRequest(
+        tenant=tenant,
+        transaction_tag=transaction_tag,
+        account_tag=account_tag,
+        destination=destination,
+        timestamp_begin=timestamp_begin.strftime("%Y-%m-%dT%H:%M:%SZ"),
+    )
+    response = await engine.begin_transaction(request)
+    assert response.ok is True
+    #
+    request = schema.AuthorizationRequest(
+        tenant=tenant,
+        transaction_tag=transaction_tag,
+        account_tag=account_tag,
+        destination=destination,
+        timestamp_auth=timestamp_auth,
+    )
+    response = await engine.authorization(request)
+    assert response.authorized is True
+
+
+@pytest.mark.asyncio
 async def test_authorization_failed_account_too_many_running_transactions(
     engine, graphql
 ):
