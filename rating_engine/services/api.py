@@ -2,18 +2,18 @@ import aiohttp
 
 from datetime import datetime
 from json import dumps
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 from pytz import timezone
 
 
-def _dumps(val):
-    return dumps(val, default=_dumps_converter)
+def _dumps(val: Any, d: Any = ''):
+    return dumps(val if val is not None else d, default=_dumps_converter)
 
 
 UTC = timezone('UTC')
 
 
-def _dumps_converter(v):
+def _dumps_converter(v: Any):
     if isinstance(v, datetime):
         return v.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
@@ -356,13 +356,13 @@ class APIService(object):
                 destination_rate_carrier_tag=_dumps(destination_rate['carrier_tag']),
                 destination_rate_prefix=_dumps(destination_rate['prefix']),
                 destination_rate_description=_dumps(destination_rate['description']),
-                destination_rate_connect_fee=_dumps(destination_rate['connect_fee']),
-                destination_rate_rate=_dumps(destination_rate['rate']),
+                destination_rate_connect_fee=_dumps(destination_rate['connect_fee'], 0),
+                destination_rate_rate=_dumps(destination_rate['rate'], 0),
                 destination_rate_rate_increment=_dumps(
-                    destination_rate['rate_increment']
+                    destination_rate['rate_increment'], 0
                 ),
                 destination_rate_interval_start=_dumps(
-                    destination_rate['interval_start']
+                    destination_rate['interval_start'], 0
                 ),
             )
             if destination_rate
@@ -372,10 +372,10 @@ class APIService(object):
             tenant=_dumps(tenant),
             account_tag=_dumps(account_tag),
             transaction_tag=_dumps(transaction_tag),
-            source=_dumps(source or ''),
-            source_ip=_dumps(source_ip or ''),
-            destination=_dumps(destination or ''),
-            carrier_ip=_dumps(carrier_ip or ''),
+            source=_dumps(source),
+            source_ip=_dumps(source_ip),
+            destination=_dumps(destination),
+            carrier_ip=_dumps(carrier_ip),
             timestamp_begin=_dumps(timestamp_begin),
             destination_rate=query_destination_rate,
             inbound='true' if inbound else 'false',
@@ -445,13 +445,13 @@ class APIService(object):
                 destination_rate_carrier_tag=_dumps(destination_rate['carrier_tag']),
                 destination_rate_prefix=_dumps(destination_rate['prefix']),
                 destination_rate_description=_dumps(destination_rate['description']),
-                destination_rate_connect_fee=_dumps(destination_rate['connect_fee']),
-                destination_rate_rate=_dumps(destination_rate['rate']),
+                destination_rate_connect_fee=_dumps(destination_rate['connect_fee'], 0),
+                destination_rate_rate=_dumps(destination_rate['rate'], 0),
                 destination_rate_rate_increment=_dumps(
-                    destination_rate['rate_increment']
+                    destination_rate['rate_increment'], 0
                 ),
                 destination_rate_interval_start=_dumps(
-                    destination_rate['interval_start']
+                    destination_rate['interval_start'], 0
                 ),
             )
             if destination_rate
@@ -470,10 +470,10 @@ class APIService(object):
             timestamp_begin=_dumps(transaction['timestamp_begin']),
             timestamp_end=_dumps(transaction['timestamp_end']),
             inbound='true' if transaction.get('inbound') else 'false',
-            duration=_dumps(duration),
+            duration=_dumps(duration, 0),
             fee=_dumps(fee),
             failed='true' if transaction.get('failed') else 'false',
-            failed_reason=_dumps(transaction.get('failed_reason') or ''),
+            failed_reason=_dumps(transaction.get('failed_reason')),
         )
         result = await self._query(query=query)
         return (
@@ -489,7 +489,7 @@ class APIService(object):
             tenant=_dumps(tenant),
             account_tag=_dumps(account_tag),
             transaction_tag=_dumps(transaction_tag),
-            fee=_dumps(fee),
+            fee=_dumps(fee, 0),
         )
         result = await self._query(query=query)
         return (
