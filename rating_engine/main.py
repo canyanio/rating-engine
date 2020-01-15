@@ -13,7 +13,10 @@ from .app import get_app
     show_default=True,
 )
 @click.option(
-    "--api-url", type=click.STRING, default="http://localhost:8000", show_default=True,
+    "--api-url",
+    type=click.STRING,
+    default="http://localhost:8000/graphql",
+    show_default=True,
 )
 @click.option(
     "--api-username", type=click.STRING, default=None,

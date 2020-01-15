@@ -11,11 +11,25 @@ class JsonRPC(RPC):
     CONTENT_TYPE = 'application/json'
 
     def deserialize(self, data: bytes) -> Any:
-        return self.SERIALIZER.loads(data.decode('utf-8'))
+        value = self.SERIALIZER.loads(data.decode('utf-8'))
+        if type(value) == dict and value.get('error'):
+            return RuntimeError(value['error']['message'])
+        return value
 
     def serialize(self, data: Any) -> bytes:
         return self.SERIALIZER.dumps(data, ensure_ascii=False, default=repr).encode(
             'utf-8'
+        )
+
+    def serialize_exception(self, exception: Exception) -> bytes:
+        return self.serialize(
+            {
+                "error": {
+                    "type": exception.__class__.__name__,
+                    "message": repr(exception),
+                    "args": exception.args,
+                }
+            }
         )
 
 

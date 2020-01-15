@@ -12,7 +12,7 @@ async def test_app_authorization(app):
     #
     request = schema.AuthorizationRequest(transaction_tag="100",)
     response = await bus.rpc_call(
-        method=MethodName.AUTHORIZATION.value, kwargs={'transaction': dict(request)},
+        method=MethodName.AUTHORIZATION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response['authorized'] is False
@@ -27,7 +27,7 @@ async def test_app_authorization_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.AUTHORIZATION.value, kwargs={'transaction': dict(request)},
+        method=MethodName.AUTHORIZATION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response.get('errors') is not None
@@ -42,8 +42,7 @@ async def test_app_begin_transaction(app):
     #
     request = schema.BeginTransactionRequest(transaction_tag="100",)
     response = await bus.rpc_call(
-        method=MethodName.BEGIN_TRANSACTION.value,
-        kwargs={'transaction': dict(request)},
+        method=MethodName.BEGIN_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response['ok'] is False
@@ -58,8 +57,7 @@ async def test_app_begin_transaction_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.BEGIN_TRANSACTION.value,
-        kwargs={'transaction': dict(request)},
+        method=MethodName.BEGIN_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response.get('errors') is not None
@@ -74,8 +72,7 @@ async def test_app_rollback_transaction(app):
     #
     request = schema.RollbackTransactionRequest(transaction_tag="100",)
     response = await bus.rpc_call(
-        method=MethodName.ROLLBACK_TRANSACTION.value,
-        kwargs={'transaction': dict(request)},
+        method=MethodName.ROLLBACK_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response['ok'] is False
@@ -90,8 +87,7 @@ async def test_app_rollback_transaction_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.ROLLBACK_TRANSACTION.value,
-        kwargs={'transaction': dict(request)},
+        method=MethodName.ROLLBACK_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response.get('errors') is not None
@@ -106,7 +102,7 @@ async def test_app_end_transaction(app):
     #
     request = schema.EndTransactionRequest(transaction_tag="100",)
     response = await bus.rpc_call(
-        method=MethodName.END_TRANSACTION.value, kwargs={'transaction': dict(request)},
+        method=MethodName.END_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response['ok'] is False
@@ -121,7 +117,7 @@ async def test_app_end_transaction_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.END_TRANSACTION.value, kwargs={'transaction': dict(request)},
+        method=MethodName.END_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response.get('errors') is not None
@@ -136,8 +132,7 @@ async def test_app_record_transaction(app):
     #
     request = schema.RecordTransactionRequest(transaction_tag="100",)
     response = await bus.rpc_call(
-        method=MethodName.RECORD_TRANSACTION.value,
-        kwargs={'transaction': dict(request)},
+        method=MethodName.RECORD_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response['ok'] is False
@@ -152,8 +147,7 @@ async def test_app_record_transaction_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.RECORD_TRANSACTION.value,
-        kwargs={'transaction': dict(request)},
+        method=MethodName.RECORD_TRANSACTION.value, kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response.get('errors') is not None
