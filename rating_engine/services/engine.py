@@ -4,6 +4,7 @@ from . import rater as rater_service
 
 from datetime import datetime
 from pytz import timezone
+from typing import Optional
 
 
 UTC = timezone('UTC')
@@ -118,6 +119,7 @@ class EngineService(object):
                             unauthorized_account_tag=item['account_tag'],
                             unauthorized_account_reason='BALANCE_INSUFFICIENT',
                         )
+
         # return the response
         return schema.AuthorizationResponse(
             authorized=bool(account),
@@ -126,15 +128,44 @@ class EngineService(object):
             max_available_units=max_available_units,
             carriers=carriers,
         )
+    async def _restore_transaction_state_from_auth_request(
+        self, tenant: str, transaction_tag: str
+    ) -> Optional[dict]:
+        state = {}
+        txs = await self._api.get_primary_transactions_by_tenant_and_tag(
+            tenant, transaction_tag
+        )
+        for tx in txs:
+            if not tx['inbound']:
+                state['account_tag'] = tx['account_tag']
+            elif tx['inbound']:
+                state['destination_account_tag'] = tx['account_tag']
+            state.setdefault('source', tx['source'])
+            state.setdefault('source_ip', tx['source_ip'])
+            state.setdefault('destination', tx['destination'])
+            state.setdefault('carrier_ip', tx['carrier_ip'])
+        return state if state != {} else None
 
     async def begin_transaction(
         self, request: schema.BeginTransactionRequest
     ) -> schema.BeginTransactionResponse:
         if request.timestamp_begin is None:
             request.timestamp_begin = UTC.localize(datetime.utcnow())
-        # no account nor destination account specified
+        # no account nor destination account specified, api look-up
         if request.account_tag is None and request.destination_account_tag is None:
-            return schema.BeginTransactionResponse(ok=False,)
+            state = await self._restore_transaction_state_from_auth_request(
+                request.tenant, request.transaction_tag
+            )
+            if state is not None:
+                request.account_tag = state['account_tag']
+                request.destination_account_tag = state['destination_account_tag']
+                request.source = state['source']
+                request.source_ip = state['source_ip']
+                request.destination = state['destination']
+                request.carrier_ip = state['carrier_ip']
+        # still no account nor destination account specified, give up
+        if request.account_tag is None and request.destination_account_tag is None:
+            return schema.BeginTransactionResponse(ok=False)
         # get the account and destination account
         (
             account,
@@ -176,7 +207,7 @@ class EngineService(object):
             if account is None:
                 continue
             linked_accounts = account.pop('linked_accounts', [])
-            for item in linked_accounts + [account]:
+            for n, item in enumerate([account] + linked_accounts):
                 await self._api.begin_account_transaction(
                     tenant=request.tenant,
                     account_tag=item['account_tag'],
@@ -189,13 +220,28 @@ class EngineService(object):
                     destination=request.destination,
                     carrier_ip=request.carrier_ip,
                     timestamp_begin=request.timestamp_begin,
-                    inbound=inbound,
+                    primary=(n == 0),
                 )
         return schema.BeginTransactionResponse(ok=True)
 
     async def rollback_transaction(
         self, request: schema.RollbackTransactionRequest
     ) -> schema.RollbackTransactionResponse:
+        # no account nor destination account specified, api look-up
+        if request.account_tag is None and request.destination_account_tag is None:
+            state = await self._restore_transaction_state_from_auth_request(
+                request.tenant, request.transaction_tag
+            )
+            if state is not None:
+                request.account_tag = state['account_tag']
+                request.destination_account_tag = state['destination_account_tag']
+                request.source = state['source']
+                request.source_ip = state['source_ip']
+                request.destination = state['destination']
+                request.carrier_ip = state['carrier_ip']
+        # still no account nor destination account specified, give up
+        if request.account_tag is None and request.destination_account_tag is None:
+            return schema.RollbackTransactionResponse(ok=False)
         # write the db with the rollback of transaction
         response = await self._api.rollback_account_transaction(
             tenant=request.tenant,
@@ -211,9 +257,21 @@ class EngineService(object):
     ) -> schema.EndTransactionResponse:
         if request.timestamp_end is None:
             request.timestamp_end = UTC.localize(datetime.utcnow())
-        # no account nor destination account specified
+        # no account nor destination account specified, api look-up
         if request.account_tag is None and request.destination_account_tag is None:
-            return schema.EndTransactionResponse(ok=False,)
+            state = await self._restore_transaction_state_from_auth_request(
+                request.tenant, request.transaction_tag
+            )
+            if state is not None:
+                request.account_tag = state['account_tag']
+                request.destination_account_tag = state['destination_account_tag']
+                request.source = state['source']
+                request.source_ip = state['source_ip']
+                request.destination = state['destination']
+                request.carrier_ip = state['carrier_ip']
+        # still no account nor destination account specified, give up
+        if request.account_tag is None and request.destination_account_tag is None:
+            return schema.EndTransactionResponse(ok=False)
         # get the account and destination account
         (
             account,

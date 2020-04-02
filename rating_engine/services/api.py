@@ -2,7 +2,7 @@ import aiohttp
 
 from datetime import datetime
 from json import dumps
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from pytz import timezone
 
 
@@ -149,7 +149,8 @@ class APIService(object):
             destination: %(destination)s,
             carrier_ip: %(carrier_ip)s,
             timestamp_begin: %(timestamp_begin)s,
-            inbound: %(inbound)s
+            inbound: %(inbound)s,
+            primary: %(primary)s
         }
     ) {
         ok
@@ -169,6 +170,7 @@ class APIService(object):
             tags
             in_progress
             inbound
+            primary
             timestamp_begin
             timestamp_end
         }
@@ -230,6 +232,20 @@ class APIService(object):
     }
 }"""
 
+    QUERY_GET_PRIMARY_TRANSACTIONS_BY_TENANT_AND_TAG = """query {
+    allTransactions(filter:{tenant: %(tenant)s, transaction_tag: %(transaction_tag)s, primary: true)}) {
+        tenant
+        transaction_tag
+        account_tag
+        source
+        source_ip
+        destination
+        carrier_ip
+        inbound
+        primary
+    }
+}"""
+
     QUERY_UPSERT_TRANSACTION = """mutation {
     upsertTransaction (
         tenant: %(tenant)s,
@@ -244,6 +260,7 @@ class APIService(object):
         timestamp_begin: %(timestamp_begin)s
         timestamp_end: %(timestamp_end)s
         inbound: %(inbound)s,
+        primary: %(primary)s,
         duration: %(duration)s,
         fee: %(fee)s,
         failed: %(failed)s,
@@ -346,6 +363,7 @@ class APIService(object):
         carrier_ip: Optional[str],
         timestamp_begin: datetime,
         inbound: bool = False,
+        primary: bool = False,
     ) -> dict:
         query_destination_rate = (
             self.QUERY_DESTINATION_RATE
@@ -378,6 +396,7 @@ class APIService(object):
             carrier_ip=_dumps(carrier_ip),
             timestamp_begin=_dumps(timestamp_begin),
             destination_rate=query_destination_rate,
+            primary='true' if primary else 'false',
             inbound='true' if inbound else 'false',
         )
         result = await self._query(query=query)
@@ -427,6 +446,15 @@ class APIService(object):
             else None
         )
 
+    async def get_primary_transactions_by_tenant_and_tag(
+        self, tenant: str, transaction_tag: str,
+    ) -> List[dict]:
+        query = self.QUERY_GET_PRIMARY_TRANSACTIONS_BY_TENANT_AND_TAG % dict(
+            tenant=_dumps(tenant), transaction_tag=_dumps(transaction_tag),
+        )
+        result = await self._query(query=query)
+        return list(result['data']['allTenants']) if result is not None else []
+
     async def upsert_transaction(
         self,
         tenant: str,
@@ -470,6 +498,7 @@ class APIService(object):
             timestamp_begin=_dumps(transaction['timestamp_begin']),
             timestamp_end=_dumps(transaction['timestamp_end']),
             inbound='true' if transaction.get('inbound') else 'false',
+            primary='true' if transaction.get('primary') else 'false',
             duration=_dumps(duration, 0),
             fee=_dumps(fee),
             failed='true' if transaction.get('failed') else 'false',
