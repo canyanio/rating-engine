@@ -3,16 +3,48 @@ import asyncio
 import os
 import pytest
 
+from typing import Callable, Optional
 from threading import Thread
 
 from rating_engine.app import get_app
+from rating_engine.enums import RPCCallPriority
 from rating_engine.services import api as api_service
 from rating_engine.services import engine as engine_service
+
 
 API_URL = os.getenv("API_URL", "http://localhost:8000/graphql")
 MESSAGEBUS_URI = os.getenv("MESSAGEBUS_URI", "pyamqp://user:password@localhost:5672//")
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 MONGODB_DB = os.getenv("MONGODB_DB", "rating_api")
+
+
+class MockedBus(object):
+    """Mocked bus"""
+
+    def __init__(self):
+        self.calls = []
+
+    async def connect(self):
+        pass
+
+    async def close(self):
+        pass
+
+    async def rpc_call(
+        self,
+        method: str,
+        kwargs: dict,
+        expiration: int = 10,
+        priority: int = RPCCallPriority.MEDIUM,
+    ) -> Optional[dict]:
+        self.calls.append(
+            dict(
+                method=method, kwargs=kwargs, expiration=expiration, priority=priority,
+            )
+        )
+
+    async def rpc_register(self, method: str, func: Callable, auto_delete: bool = True):
+        pass
 
 
 @pytest.fixture(scope="function")
@@ -40,13 +72,18 @@ async def api():
 
 
 @pytest.fixture
-async def engine(api):
+async def mocked_bus():
+    yield MockedBus()
+
+
+@pytest.fixture
+async def engine(api, mocked_bus):
     from pymongo import MongoClient
 
     mongoclient = MongoClient(MONGODB_URI)
     mongoclient.drop_database(MONGODB_DB)
     #
-    engine = engine_service.EngineService(api)
+    engine = engine_service.EngineService(api, mocked_bus)
     yield engine
 
 

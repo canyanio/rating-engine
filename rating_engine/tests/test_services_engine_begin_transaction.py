@@ -7,7 +7,7 @@ from ..schema import engine as schema
 
 @pytest.mark.asyncio
 async def test_begin_transaction(engine):
-    request = schema.BeginTransactionRequest(transaction_tag="100",)
+    request = schema.BeginTransactionRequest(transaction_tag="100")
     result = await engine.begin_transaction(request)
     assert result == schema.BeginTransactionResponse(ok=False)
 
@@ -19,7 +19,7 @@ async def test_begin_transaction_failed_no_accounts_provided(engine):
     destination = "393291234567"
     #
     request = schema.BeginTransactionRequest(
-        tenant=tenant, transaction_tag=transaction_tag, destination=destination,
+        tenant=tenant, transaction_tag=transaction_tag, destination=destination
     )
     response = await engine.begin_transaction(request)
     assert response.ok is False

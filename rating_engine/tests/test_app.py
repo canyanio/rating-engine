@@ -147,7 +147,7 @@ async def test_app_record_transaction_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.RECORD_TRANSACTION.value, kwargs={'request': dict(request)},
+        method=MethodName.RECORD_TRANSACTION.value, kwargs={'request': dict(request)}
     )
     assert response is not None
     assert response.get('errors') is not None

@@ -63,4 +63,4 @@ engine-dev:
 
 .PHONY: dockerfile
 dockerfile:
-	docker build -t canyan/rating-engine:latest .
+	docker build -t canyan/rating-engine:master .
