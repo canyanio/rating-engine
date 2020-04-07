@@ -291,7 +291,6 @@ class APIService(object):
             async with self._session.post(self._api_url, json=json) as r:
                 if r.status == 200:
                     return await r.json()
-                print(await r.json())
         except aiohttp.ClientError:  # pragma: no cover
             pass
         return None
