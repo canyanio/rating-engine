@@ -7,7 +7,7 @@ from ..schema import engine as schema
 
 @pytest.mark.asyncio
 async def test_end_transaction(engine):
-    request = schema.EndTransactionRequest(transaction_tag="100",)
+    request = schema.EndTransactionRequest(transaction_tag="100")
     result = await engine.end_transaction(request)
     assert result == schema.EndTransactionResponse(ok=False)
 
@@ -18,7 +18,7 @@ async def test_end_transaction_failed_no_accounts_provided(engine):
     transaction_tag = "100"
     #
     request = schema.EndTransactionRequest(
-        tenant=tenant, transaction_tag=transaction_tag,
+        tenant=tenant, transaction_tag=transaction_tag
     )
     response = await engine.end_transaction(request)
     assert response.ok is False
@@ -31,7 +31,7 @@ async def test_end_transaction_failed_account_not_found(engine):
     account_tag = "1000"
     #
     request = schema.EndTransactionRequest(
-        tenant=tenant, transaction_tag=transaction_tag, account_tag=account_tag,
+        tenant=tenant, transaction_tag=transaction_tag, account_tag=account_tag
     )
     response = await engine.end_transaction(request)
     assert response.ok is False
@@ -97,7 +97,7 @@ async def test_end_transaction_failed_transaction_not_found(engine, graphql):
         % {'tenant': dumps(tenant), 'account_tag': dumps(account_tag)}
     )
     request = schema.EndTransactionRequest(
-        tenant=tenant, transaction_tag=transaction_tag, account_tag=account_tag,
+        tenant=tenant, transaction_tag=transaction_tag, account_tag=account_tag
     )
     response = await engine.end_transaction(request)
     assert response.ok is False

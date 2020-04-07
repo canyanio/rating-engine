@@ -7,6 +7,8 @@ from typing import Any, Callable, Optional
 from aio_pika import connect_robust, Channel, Connection
 from aio_pika.patterns import RPC
 
+from ..enums import RPCCallPriority
+
 
 UTC = timezone('UTC')
 
@@ -60,7 +62,11 @@ class BusService(object):
         await self.connection.close()
 
     async def rpc_call(
-        self, method: str, kwargs: dict, expiration: int = 10
+        self,
+        method: str,
+        kwargs: dict,
+        expiration: int = 10,
+        priority: RPCCallPriority = RPCCallPriority.MEDIUM,
     ) -> Optional[dict]:
         return await self.rpc.call(method, kwargs=kwargs, expiration=expiration)
 

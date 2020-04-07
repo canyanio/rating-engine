@@ -63,4 +63,16 @@ engine-dev:
 
 .PHONY: dockerfile
 dockerfile:
-	docker build -t canyan/rating-engine:latest .
+	docker build -t canyan/rating-engine:master .
+
+.PHONY: dockerfile-tests
+dockerfile-tests:
+	docker build -t canyan/rating-engine:tests -f Dockerfile.tests .
+
+.PHONY: docker-start
+docker-start:
+	docker-compose -f docker-compose.yaml -f docker-compose.tests.yaml up -d
+
+.PHONY: docker-stop
+docker-stop:
+	docker-compose -f docker-compose.yaml -f docker-compose.tests.yaml down

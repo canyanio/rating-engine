@@ -1,5 +1,7 @@
 from ..schema import engine as schema
+from ..enums import MethodName, RPCCallPriority
 from . import api as api_service
+from . import bus as bus_service
 from . import rater as rater_service
 
 from datetime import datetime
@@ -11,10 +13,14 @@ UTC = timezone('UTC')
 
 class EngineService(object):
     _api: api_service.APIService
+    _bus: bus_service.BusService
     _rater: rater_service.RaterService
 
-    def __init__(self, api: api_service.APIService, tz=None):
+    def __init__(
+        self, api: api_service.APIService, bus: bus_service.BusService, tz=None
+    ):
         self._api = api
+        self._bus = bus
         self._rater = rater_service.RaterService(tz=tz)
 
     async def authorization(
@@ -82,16 +88,16 @@ class EngineService(object):
         )
         # loop on account and its linked accounts
         balance = None
+        authorization_response = None
         max_available_units = self._rater.MAX_UNITS_FOR_TRANSACTIONS
-        for account_objecft, inbound in ((account, False), (destination_account, True)):
-            if account_objecft is None:
+        for account_object, inbound in ((account, False), (destination_account, True)):
+            if account_object is None:
                 continue
-            linked_accounts = account_objecft.pop('linked_accounts', [])
-            for item in linked_accounts + [account_objecft]:
+            linked_accounts = account_object.pop('linked_accounts', [])
+            for _, item in enumerate([account_object] + linked_accounts):
                 # apply pending transactions to balance
                 balance = item['balance']
                 for pending_transaction in item['running_transactions']:
-                    print(pending_transaction)
                     balance -= self._rater.get_transaction_fee(
                         transaction=pending_transaction
                     )
@@ -101,10 +107,11 @@ class EngineService(object):
                         item['running_transactions']
                     )
                     if account_authorized is False:
-                        return schema.AuthorizationResponse(
+                        authorization_response = schema.AuthorizationResponse(
                             unauthorized_account_tag=item['account_tag'],
                             unauthorized_account_reason='TOO_MANY_RUNNING_TRANSACTIONS',
                         )
+                        break
                 # calculate authorization and max_available_units
                 if not inbound and item['type'] == 'PREPAID':
                     destination_rate = item['destination_rate']
@@ -114,18 +121,71 @@ class EngineService(object):
                     account_authorized, max_units = res
                     max_available_units = min(max_available_units, max_units)
                     if account_authorized is False:
-                        return schema.AuthorizationResponse(
+                        authorization_response = schema.AuthorizationResponse(
                             unauthorized_account_tag=item['account_tag'],
                             unauthorized_account_reason='BALANCE_INSUFFICIENT',
                         )
-        # return the response
-        return schema.AuthorizationResponse(
-            authorized=bool(account),
-            authorized_destination=bool(destination_account),
-            balance=balance,
-            max_available_units=max_available_units,
-            carriers=carriers,
+                        break
+            # authorization_response is populated if the auth failed, break
+            if authorization_response is not None:
+                break
+        # authorization_response is none, auth succeeded
+        if authorization_response is None:
+            authorization_response = schema.AuthorizationResponse(
+                authorized=bool(account),
+                authorized_destination=bool(destination_account),
+                balance=balance,
+                max_available_units=max_available_units,
+                carriers=carriers,
+            )
+        # record the authorization transaction (async)
+        auth_tx_request = schema.AuthorizationTransactionRequest(
+            tenant=request.tenant,
+            transaction_tag=request.transaction_tag,
+            account_tag=request.account_tag,
+            destination_account_tag=request.destination_account_tag,
+            source=request.source,
+            destination=request.destination,
+            timestamp_auth=request.timestamp_auth,
+            tags=request.tags,
+            primary=True,
+            #
+            authorized=authorization_response.authorized,
+            # authorized_destination=authorization_response.destination_account,
+            balance=authorization_response.balance,
+            # max_available_units=authorization_response.max_available_units,
+            carriers=authorization_response.carriers,
         )
+        await self._bus.rpc_call(
+            MethodName.AUTHORIZATION_TRANSACTION.value,
+            dict(request=auth_tx_request.dict()),
+            priority=RPCCallPriority.LOW,
+        )
+        # return the response
+        return authorization_response
+
+    async def authorization_transaction(
+        self, request: schema.AuthorizationTransactionRequest
+    ) -> schema.AuthorizationTransactionResponse:
+        for (account_tag, inbound) in (
+            (request.account_tag, True),
+            (request.destination_account_tag, False),
+        ):
+            if account_tag is None:
+                continue
+            await self._api.upsert_authorization_transaction(
+                tenant=request.tenant,
+                account_tag=account_tag,
+                transaction=dict(
+                    transaction_tag=request.transaction_tag,
+                    source=request.source,
+                    destination=request.destination,
+                    tags=request.tags,
+                    timestamp_auth=request.timestamp_auth,
+                    inbound=inbound,
+                ),
+            )
+        return schema.AuthorizationTransactionResponse(ok=True)
 
     async def begin_transaction(
         self, request: schema.BeginTransactionRequest
@@ -134,7 +194,7 @@ class EngineService(object):
             request.timestamp_begin = UTC.localize(datetime.utcnow())
         # no account nor destination account specified
         if request.account_tag is None and request.destination_account_tag is None:
-            return schema.BeginTransactionResponse(ok=False,)
+            return schema.BeginTransactionResponse(ok=False)
         # get the account and destination account
         (
             account,
@@ -176,7 +236,7 @@ class EngineService(object):
             if account is None:
                 continue
             linked_accounts = account.pop('linked_accounts', [])
-            for item in linked_accounts + [account]:
+            for n, item in enumerate([account] + linked_accounts):
                 await self._api.begin_account_transaction(
                     tenant=request.tenant,
                     account_tag=item['account_tag'],
@@ -190,6 +250,7 @@ class EngineService(object):
                     carrier_ip=request.carrier_ip,
                     timestamp_begin=request.timestamp_begin,
                     inbound=inbound,
+                    primary=(n == 0),
                 )
         return schema.BeginTransactionResponse(ok=True)
 
@@ -213,7 +274,7 @@ class EngineService(object):
             request.timestamp_end = UTC.localize(datetime.utcnow())
         # no account nor destination account specified
         if request.account_tag is None and request.destination_account_tag is None:
-            return schema.EndTransactionResponse(ok=False,)
+            return schema.EndTransactionResponse(ok=False)
         # get the account and destination account
         (
             account,

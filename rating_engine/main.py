@@ -18,12 +18,8 @@ from .app import get_app
     default="http://localhost:8000/graphql",
     show_default=True,
 )
-@click.option(
-    "--api-username", type=click.STRING, default=None,
-)
-@click.option(
-    "--api-password", type=click.STRING, default=None,
-)
+@click.option("--api-username", type=click.STRING, default=None)
+@click.option("--api-password", type=click.STRING, default=None)
 @click.option("-d", "--debug/--no-debug", default=False)
 def main(
     host: str = "0.0.0.0",
