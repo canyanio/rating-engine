@@ -9,16 +9,18 @@ from ..schema import engine as schema
 
 
 @pytest.mark.asyncio
-async def test_authorization(engine):
+async def test_authorization(engine, mocked_bus):
     request = schema.AuthorizationRequest(transaction_tag="100")
     result = await engine.authorization(request)
     assert result == schema.AuthorizationResponse(
         transaction_tag="100", authorized=False
     )
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_no_accounts_provided(engine):
+async def test_authorization_failed_no_accounts_provided(engine, mocked_bus):
     tenant = "default"
     transaction_tag = "100"
     destination = "393291234567"
@@ -29,10 +31,12 @@ async def test_authorization_failed_no_accounts_provided(engine):
     response = await engine.authorization(request)
     assert response.authorized is False
     assert response.authorized_destination is False
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_account_not_found(engine):
+async def test_authorization_failed_account_not_found(engine, mocked_bus):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
@@ -49,10 +53,12 @@ async def test_authorization_failed_account_not_found(engine):
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
     assert 'NOT_FOUND' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_account_not_active(engine, graphql):
+async def test_authorization_failed_account_not_active(engine, graphql, mocked_bus):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
@@ -85,10 +91,14 @@ async def test_authorization_failed_account_not_active(engine, graphql):
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
     assert 'NOT_ACTIVE' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_unreacheable_destination(engine, graphql):
+async def test_authorization_failed_unreacheable_destination(
+    engine, graphql, mocked_bus
+):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
@@ -122,10 +132,12 @@ async def test_authorization_failed_unreacheable_destination(engine, graphql):
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
     assert 'UNREACHEABLE_DESTINATION' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_destination_account_not_found(engine):
+async def test_authorization_failed_destination_account_not_found(engine, mocked_bus):
     tenant = "default"
     transaction_tag = "100"
     destination_account_tag = "1001"
@@ -142,10 +154,14 @@ async def test_authorization_failed_destination_account_not_found(engine):
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
     assert 'NOT_FOUND' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
-async def test_authorization_failed_destination_account_not_active(engine, graphql):
+async def test_authorization_failed_destination_account_not_active(
+    engine, graphql, mocked_bus
+):
     tenant = "default"
     transaction_tag = "100"
     destination_account_tag = "1001"
@@ -178,6 +194,8 @@ async def test_authorization_failed_destination_account_not_active(engine, graph
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
     assert 'NOT_ACTIVE' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 0
 
 
 @pytest.mark.asyncio
@@ -423,7 +441,7 @@ async def test_authorization_failed_account_virtual_balance_insufficient(
 
 @pytest.mark.asyncio
 async def test_authorization_successful_account_virtual_balance_sufficient(
-    engine, graphql
+    engine, graphql, mocked_bus
 ):
     tenant = "default"
     transaction_tag = "100"
@@ -491,18 +509,49 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
     response = await engine.begin_transaction(request)
     assert response.ok is True
     #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
     request = schema.AuthorizationRequest(
         tenant=tenant,
         transaction_tag=transaction_tag,
         account_tag=account_tag,
         destination=destination,
+        timestamp_auth=timestamp_auth,
     )
     response = await engine.authorization(request)
     assert response.authorized is True
+    #
+    assert len(mocked_bus.calls) == 1
+    assert mocked_bus.calls[0] == {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': '1000',
+                'authorized': True,
+                'authorized_destination': False,
+                'balance': 4,
+                'carriers': ['UDP:carrier1.canyan.io:5060'],
+                'destination': '393291234567',
+                'destination_account_tag': None,
+                'inbound': False,
+                'max_available_units': 0,
+                'primary': True,
+                'source': None,
+                'tags': [],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_account_reason': None,
+                'unauthorized_account_tag': None,
+                'unauthorized_destination_reason': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    }
 
 
 @pytest.mark.asyncio
-async def test_authorization_successful_with_timestamp(engine, graphql):
+async def test_authorization_successful_with_timestamp(engine, graphql, mocked_bus):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
@@ -563,6 +612,7 @@ async def test_authorization_successful_with_timestamp(engine, graphql):
         transaction_tag=transaction_tag,
         account_tag=account_tag,
         destination=destination,
+        timestamp_auth=timestamp_auth,
         timestamp_begin=timestamp_begin.strftime("%Y-%m-%dT%H:%M:%SZ"),
     )
     response = await engine.begin_transaction(request)
@@ -577,11 +627,40 @@ async def test_authorization_successful_with_timestamp(engine, graphql):
     )
     response = await engine.authorization(request)
     assert response.authorized is True
+    #
+    assert len(mocked_bus.calls) == 1
+    assert mocked_bus.calls[0] == {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': '1000',
+                'authorized': True,
+                'authorized_destination': False,
+                'balance': 4,
+                'carriers': ['UDP:carrier1.canyan.io:5060'],
+                'destination': '393291234567',
+                'destination_account_tag': None,
+                'inbound': False,
+                'max_available_units': 0,
+                'primary': True,
+                'source': None,
+                'tags': [],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_account_reason': None,
+                'unauthorized_account_tag': None,
+                'unauthorized_destination_reason': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    }
 
 
 @pytest.mark.asyncio
 async def test_authorization_failed_account_too_many_running_transactions(
-    engine, graphql
+    engine, graphql, mocked_bus
 ):
     tenant = "default"
     transaction_tag = "100"
@@ -637,22 +716,53 @@ async def test_authorization_failed_account_too_many_running_transactions(
         % {'tenant': dumps(tenant), 'account_tag': dumps(account_tag)}
     )
     #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
     request = schema.AuthorizationRequest(
         tenant=tenant,
         transaction_tag=transaction_tag,
         account_tag=account_tag,
         destination=destination,
+        timestamp_auth=timestamp_auth,
     )
     response = await engine.authorization(request)
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
     assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 1
+    assert mocked_bus.calls[0] == {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': '1000',
+                'authorized': False,
+                'authorized_destination': False,
+                'balance': 0,
+                'carriers': [],
+                'destination': '393291234567',
+                'destination_account_tag': None,
+                'inbound': False,
+                'max_available_units': 0,
+                'primary': True,
+                'source': None,
+                'tags': [],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_account_reason': None,
+                'unauthorized_account_tag': None,
+                'unauthorized_destination_reason': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    }
 
 
 @pytest.mark.asyncio
 async def test_authorization_failed_account_and_destination_account_too_many_running_transactions(
-    engine, graphql
+    engine, graphql, mocked_bus
 ):
     tenant = "default"
     transaction_tag = "100"
@@ -723,23 +833,54 @@ async def test_authorization_failed_account_and_destination_account_too_many_run
         }
     )
     #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
     request = schema.AuthorizationRequest(
         tenant=tenant,
         transaction_tag=transaction_tag,
         account_tag=account_tag,
         destination_account_tag=destination_account_tag,
         destination=destination,
+        timestamp_auth=timestamp_auth,
     )
     response = await engine.authorization(request)
     assert response.authorized is False
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
     assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 1
+    assert mocked_bus.calls[0] == {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': '1000',
+                'authorized': False,
+                'authorized_destination': False,
+                'balance': 0,
+                'carriers': [],
+                'destination': '393291234567',
+                'destination_account_tag': '1001',
+                'inbound': False,
+                'max_available_units': 0,
+                'primary': True,
+                'source': None,
+                'tags': [],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_account_reason': None,
+                'unauthorized_account_tag': None,
+                'unauthorized_destination_reason': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    }
 
 
 @pytest.mark.asyncio
 async def test_authorization_failed_destination_account_too_many_running_transactions(
-    engine, graphql
+    engine, graphql, mocked_bus
 ):
     tenant = "default"
     transaction_tag = "100"
@@ -798,14 +939,45 @@ async def test_authorization_failed_destination_account_too_many_running_transac
         }
     )
     #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
     request = schema.AuthorizationRequest(
         tenant=tenant,
         transaction_tag=transaction_tag,
         destination_account_tag=destination_account_tag,
         destination=destination,
+        timestamp_auth=timestamp_auth,
     )
     response = await engine.authorization(request)
     assert response.authorized is False
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
     assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_account_reason
+    #
+    assert len(mocked_bus.calls) == 1
+    assert mocked_bus.calls[0] == {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': None,
+                'authorized': False,
+                'authorized_destination': False,
+                'balance': 0,
+                'carriers': [],
+                'destination': '393291234567',
+                'destination_account_tag': '1001',
+                'inbound': False,
+                'max_available_units': 0,
+                'primary': True,
+                'source': None,
+                'tags': [],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_account_reason': None,
+                'unauthorized_account_tag': None,
+                'unauthorized_destination_reason': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    }
