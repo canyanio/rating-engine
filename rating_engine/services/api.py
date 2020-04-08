@@ -149,8 +149,8 @@ class APIService(object):
             destination: %(destination)s,
             carrier_ip: %(carrier_ip)s,
             timestamp_begin: %(timestamp_begin)s,
-            inbound: %(inbound)s,
-            primary: %(primary)s
+            primary: %(primary)s,
+            inbound: %(inbound)s
         }
     ) {
         ok
@@ -233,7 +233,7 @@ class APIService(object):
 }"""
 
     QUERY_GET_PRIMARY_TRANSACTIONS_BY_TENANT_AND_TAG = """query {
-    allTransactions(filter:{tenant: %(tenant)s, transaction_tag: %(transaction_tag)s, primary: true)}) {
+    allTransactions(filter:{tenant: %(tenant)s, transaction_tag: %(transaction_tag)s, primary: true}) {
         tenant
         transaction_tag
         account_tag
@@ -259,12 +259,29 @@ class APIService(object):
         tags: %(tags)s,
         timestamp_begin: %(timestamp_begin)s
         timestamp_end: %(timestamp_end)s
+        primary: %(primary)s,
         inbound: %(inbound)s,
         primary: %(primary)s,
         duration: %(duration)s,
         fee: %(fee)s,
         failed: %(failed)s,
         failed_reason: %(failed_reason)s
+    ) {
+        id
+    }
+}"""
+
+    QUERY_UPSERT_AUTHORIZATION_TRANSACTION = """mutation {
+    upsertTransaction (
+        tenant: %(tenant)s,
+        transaction_tag: %(transaction_tag)s,
+        account_tag: %(account_tag)s,
+        source: %(source)s,
+        destination: %(destination)s,
+        tags: %(tags)s,
+        timestamp_auth: %(timestamp_auth)s
+        primary: %(primary)s,
+        inbound: %(inbound)s,
     ) {
         id
     }
@@ -289,7 +306,6 @@ class APIService(object):
             async with self._session.post(self._api_url, json=json) as r:
                 if r.status == 200:
                     return await r.json()
-                print(await r.json())
         except aiohttp.ClientError:  # pragma: no cover
             pass
         return None
@@ -362,8 +378,8 @@ class APIService(object):
         destination: Optional[str],
         carrier_ip: Optional[str],
         timestamp_begin: datetime,
-        inbound: bool = False,
         primary: bool = False,
+        inbound: bool = False,
     ) -> dict:
         query_destination_rate = (
             self.QUERY_DESTINATION_RATE
@@ -453,7 +469,7 @@ class APIService(object):
             tenant=_dumps(tenant), transaction_tag=_dumps(transaction_tag),
         )
         result = await self._query(query=query)
-        return list(result['data']['allTenants']) if result is not None else []
+        return list(result['data']['allTransactions']) if result is not None else []
 
     async def upsert_transaction(
         self,
@@ -497,12 +513,33 @@ class APIService(object):
             tags=_dumps(transaction['tags'] or []),
             timestamp_begin=_dumps(transaction['timestamp_begin']),
             timestamp_end=_dumps(transaction['timestamp_end']),
-            inbound='true' if transaction.get('inbound') else 'false',
             primary='true' if transaction.get('primary') else 'false',
+            inbound='true' if transaction.get('inbound') else 'false',
             duration=_dumps(duration, 0),
             fee=_dumps(fee),
             failed='true' if transaction.get('failed') else 'false',
             failed_reason=_dumps(transaction.get('failed_reason')),
+        )
+        result = await self._query(query=query)
+        return (
+            result['data']['upsertTransaction']['id'] is not None
+            if result is not None
+            else False
+        )
+
+    async def upsert_authorization_transaction(
+        self, tenant: str, account_tag: str, transaction: dict
+    ) -> bool:
+        query = self.QUERY_UPSERT_AUTHORIZATION_TRANSACTION % dict(
+            tenant=_dumps(tenant),
+            account_tag=_dumps(account_tag),
+            transaction_tag=_dumps(transaction['transaction_tag']),
+            source=_dumps(transaction['source']),
+            destination=_dumps(transaction['destination']),
+            tags=_dumps(transaction['tags'] or []),
+            timestamp_auth=_dumps(transaction['timestamp_auth']),
+            primary='true',
+            inbound='true' if transaction.get('inbound') else 'false',
         )
         result = await self._query(query=query)
         return (

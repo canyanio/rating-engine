@@ -42,7 +42,7 @@ class App(object):
             api_username=config['api_username'],
             api_password=config['api_password'],
         )
-        self._rating = engine_service.EngineService(api)
+        self._rating = engine_service.EngineService(api, self._bus)
         self._setup_logger(config)
 
     def _setup_logger(self, config: dict):
@@ -78,6 +78,10 @@ class App(object):
         self.logger.info("Registering RPC methods:")
         for method, callback in (
             (MethodName.AUTHORIZATION.value, self._authorization),
+            (
+                MethodName.AUTHORIZATION_TRANSACTION.value,
+                self._authorization_transaction,
+            ),
             (MethodName.BEGIN_TRANSACTION.value, self._begin_transaction),
             (MethodName.ROLLBACK_TRANSACTION.value, self._rollback_transaction),
             (MethodName.END_TRANSACTION.value, self._end_transaction),
@@ -94,6 +98,15 @@ class App(object):
         except ValidationError as e:
             return {"errors": e.errors()}
         response = await self._rating.authorization(request_obj)
+        return dict(response)
+
+    @log_request_and_response
+    async def _authorization_transaction(self, request: dict) -> dict:
+        try:
+            request_obj = schema.AuthorizationTransactionRequest(**request)
+        except ValidationError as e:
+            return {"errors": e.errors()}
+        response = await self._rating.authorization_transaction(request_obj)
         return dict(response)
 
     @log_request_and_response

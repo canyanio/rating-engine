@@ -30,6 +30,35 @@ class AuthorizationResponse(BaseModel):
     carriers: List[str] = []
 
 
+class AuthorizationTransactionRequest(BaseModel):
+    """Authorization transaction request"""
+
+    tenant: str = 'default'
+    transaction_tag: str
+    account_tag: Optional[str] = None
+    destination_account_tag: Optional[str] = None
+    source: Optional[str] = None
+    destination: Optional[str] = None
+    timestamp_auth: Optional[datetime] = None
+    tags: List[str] = []
+    inbound: bool = False
+    primary: bool = False
+    authorized: bool = False
+    authorized_destination: bool = False
+    unauthorized_account_tag: Optional[str] = None
+    unauthorized_account_reason: Optional[str] = None
+    unauthorized_destination_reason: Optional[str] = None
+    max_available_units: int = 0
+    balance: int = 0
+    carriers: List[str] = []
+
+
+class AuthorizationTransactionResponse(BaseModel):
+    """Authorization transaction response"""
+
+    ok: bool = False
+
+
 class BeginTransactionRequest(BaseModel):
     """Begin transaction request"""
 
@@ -61,6 +90,10 @@ class EndTransactionRequest(BaseModel):
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
     timestamp_end: Optional[datetime] = None
+    source: Optional[str] = None
+    source_ip: Optional[str] = None
+    destination: Optional[str] = None
+    carrier_ip: Optional[str] = None
 
 
 class EndTransactionResponse(BaseModel):
@@ -78,6 +111,10 @@ class RollbackTransactionRequest(BaseModel):
     transaction_tag: str
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
+    source: Optional[str] = None
+    source_ip: Optional[str] = None
+    destination: Optional[str] = None
+    carrier_ip: Optional[str] = None
 
 
 class RollbackTransactionResponse(BaseModel):

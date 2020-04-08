@@ -1,13 +1,15 @@
 import pytest  # type: ignore
 
+from datetime import datetime
 from json import dumps
+from pytz import timezone
 
 from ..schema import engine as schema
 
 
 @pytest.mark.asyncio
 async def test_begin_transaction(engine):
-    request = schema.BeginTransactionRequest(transaction_tag="100",)
+    request = schema.BeginTransactionRequest(transaction_tag="100")
     result = await engine.begin_transaction(request)
     assert result == schema.BeginTransactionResponse(ok=False)
 
@@ -19,7 +21,7 @@ async def test_begin_transaction_failed_no_accounts_provided(engine):
     destination = "393291234567"
     #
     request = schema.BeginTransactionRequest(
-        tenant=tenant, transaction_tag=transaction_tag, destination=destination,
+        tenant=tenant, transaction_tag=transaction_tag, destination=destination
     )
     response = await engine.begin_transaction(request)
     assert response.ok is False
@@ -161,9 +163,11 @@ async def test_begin_transaction_with_transaction_id(engine, graphql):
     tenant = "default"
     transaction_tag = "100"
     account_tag = "1000"
+    source = "1000"
     destination = "393291234567"
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
     #
-    response = await graphql(
+    await graphql(
         """
         mutation {
             upsertCarrier(
@@ -207,19 +211,28 @@ async def test_begin_transaction_with_transaction_id(engine, graphql):
             ) {
                 id
             }
+            upsertTransaction(
+                tenant: %(tenant)s,
+                transaction_tag: %(transaction_tag)s,
+                account_tag: %(account_tag)s,
+                source: %(source)s,
+                destination: %(destination)s,
+                timestamp_auth: %(timestamp_auth)s,
+                primary: true,
+                inbound: false,
+            ) {
+                id
+            }
         }"""
-        % {'tenant': dumps(tenant), 'account_tag': dumps(account_tag)}
+        % {
+            'tenant': dumps(tenant),
+            'account_tag': dumps(account_tag),
+            'transaction_tag': dumps(transaction_tag),
+            'source': dumps(source),
+            'destination': dumps(destination),
+            'timestamp_auth': dumps(timestamp_auth.strftime("%Y-%m-%dT%H:%M:%SZ")),
+        }
     )
-    #
-    request = schema.AuthorizationRequest(
-        tenant=tenant,
-        transaction_tag=transaction_tag,
-        account_tag=account_tag,
-        destination=destination,
-    )
-    response = await engine.authorization(request)
-    assert response.authorized is True
-
     request = schema.BeginTransactionRequest(transaction_tag=transaction_tag)
     result = await engine.begin_transaction(request)
     assert result == schema.BeginTransactionResponse(ok=True)
