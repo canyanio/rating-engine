@@ -11,7 +11,7 @@ with open("LICENSE") as f:
 
 setup(
     name="rating-engine",
-    version="0.1.0",
+    version="0.1.1",
     author="Canyan Team",
     author_email="dev@canyan.io",
     description="Canyan Rating Engine API",

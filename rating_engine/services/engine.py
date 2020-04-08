@@ -169,12 +169,12 @@ class EngineService(object):
         self, request: schema.AuthorizationTransactionRequest
     ) -> schema.AuthorizationTransactionResponse:
         for (account_tag, inbound) in (
-            (request.account_tag, True),
-            (request.destination_account_tag, False),
+            (request.account_tag, False),
+            (request.destination_account_tag, True),
         ):
             if account_tag is None:
                 continue
-            await self._api.upsert_authorization_transaction(
+            response = await self._api.upsert_authorization_transaction(
                 tenant=request.tenant,
                 account_tag=account_tag,
                 transaction=dict(
@@ -186,6 +186,11 @@ class EngineService(object):
                     inbound=inbound,
                 ),
             )
+            if response is None:
+                return schema.AuthorizationTransactionResponse(
+                    failed_account_tag=account_tag,
+                    failed_account_reason='INTERNAL_ERROR',
+                )
         return schema.AuthorizationTransactionResponse(ok=True)
 
     async def _restore_transaction_state_from_auth_request(
@@ -196,6 +201,7 @@ class EngineService(object):
             tenant, transaction_tag
         )
         for tx in txs:
+            state['account_tag'] = None
             state['destination_account_tag'] = None
             if not tx['inbound']:
                 state['account_tag'] = tx['account_tag']
@@ -269,7 +275,7 @@ class EngineService(object):
                 continue
             linked_accounts = account.pop('linked_accounts', [])
             for n, item in enumerate([account] + linked_accounts):
-                await self._api.begin_account_transaction(
+                response = await self._api.begin_account_transaction(
                     tenant=request.tenant,
                     account_tag=item['account_tag'],
                     destination_rate=item.get('destination_rate')
@@ -284,6 +290,12 @@ class EngineService(object):
                     inbound=inbound,
                     primary=(n == 0),
                 )
+                if response is None:
+                    return schema.BeginTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
+
         return schema.BeginTransactionResponse(ok=True)
 
     async def rollback_transaction(
@@ -375,12 +387,22 @@ class EngineService(object):
                 fee, duration = self._rater.get_transaction_fee_and_duration(
                     transaction=transaction
                 )
-                await self._api.upsert_transaction(
+                upsert_transaction = await self._api.upsert_transaction(
                     request.tenant, item['account_tag'], transaction, duration, fee
                 )
-                await self._api.commit_account_transaction(
+                if upsert_transaction is None:
+                    return schema.EndTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
+                commit_account_transaction = await self._api.commit_account_transaction(
                     request.tenant, item['account_tag'], request.transaction_tag, fee
                 )
+                if commit_account_transaction is None:
+                    return schema.EndTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
         # return ok
         return schema.EndTransactionResponse(ok=ok)
 

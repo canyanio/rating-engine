@@ -214,6 +214,7 @@ class APIService(object):
             destination
             tags
             in_progress
+            primary
             inbound
             timestamp_begin
             timestamp_end
@@ -261,7 +262,6 @@ class APIService(object):
         timestamp_end: %(timestamp_end)s
         primary: %(primary)s,
         inbound: %(inbound)s,
-        primary: %(primary)s,
         duration: %(duration)s,
         fee: %(fee)s,
         failed: %(failed)s,
@@ -561,5 +561,5 @@ class APIService(object):
         return (
             result['data']['commitAccountTransaction']['ok']
             if result is not None
-            else None
+            else False
         )

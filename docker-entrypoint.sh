@@ -1,4 +1,6 @@
 #!/bin/sh
+date
+echo "Version "$VERSION
 
 set -e
 
