@@ -521,6 +521,9 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
     assert response.authorized is True
     #
     assert len(mocked_bus.calls) == 1
+    # balance is ephemeral, can either by 3 or 4 based on timing of the test
+    assert mocked_bus.calls[0]['kwargs']['request']['balance'] in (3, 4)
+    mocked_bus.calls[0]['kwargs']['request']['balance'] = 4
     assert mocked_bus.calls[0] == {
         'expiration': 10,
         'kwargs': {
@@ -629,6 +632,9 @@ async def test_authorization_successful_with_timestamp(engine, graphql, mocked_b
     assert response.authorized is True
     #
     assert len(mocked_bus.calls) == 1
+    # balance is ephemeral, can either by 3 or 4 based on timing of the test
+    assert mocked_bus.calls[0]['kwargs']['request']['balance'] in (3, 4)
+    mocked_bus.calls[0]['kwargs']['request']['balance'] = 4
     assert mocked_bus.calls[0] == {
         'expiration': 10,
         'kwargs': {
