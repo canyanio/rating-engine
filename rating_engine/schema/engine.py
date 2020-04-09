@@ -39,7 +39,7 @@ class AuthorizationTransactionRequest(BaseModel):
     destination_account_tag: Optional[str] = None
     source: Optional[str] = None
     destination: Optional[str] = None
-    timestamp_auth: Optional[datetime] = None
+    timestamp_auth: datetime
     tags: List[str] = []
     inbound: bool = False
     primary: bool = False
