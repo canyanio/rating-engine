@@ -181,7 +181,6 @@ class APIService(object):
     rollbackAccountTransaction(
         tenant: %(tenant)s,
         account_tag: %(account_tag)s,
-        destination_account_tag: %(destination_account_tag)s,
         transaction_tag: %(transaction_tag)s
     ) {
         ok
@@ -380,7 +379,7 @@ class APIService(object):
         timestamp_begin: datetime,
         primary: bool = False,
         inbound: bool = False,
-    ) -> dict:
+    ) -> Optional[dict]:
         query_destination_rate = (
             self.QUERY_DESTINATION_RATE
             % dict(
@@ -423,16 +422,11 @@ class APIService(object):
         )
 
     async def rollback_account_transaction(
-        self,
-        tenant: str,
-        account_tag: Optional[str],
-        destination_account_tag: Optional[str],
-        transaction_tag: str,
-    ) -> dict:
+        self, tenant: str, account_tag: Optional[str], transaction_tag: str,
+    ) -> Optional[dict]:
         query = self.QUERY_ROLLBACK_ACCOUNT_TRANSACTION % dict(
             tenant=_dumps(tenant),
             account_tag=_dumps(account_tag),
-            destination_account_tag=_dumps(destination_account_tag),
             transaction_tag=_dumps(transaction_tag),
         )
         result = await self._query(query=query)
@@ -448,7 +442,7 @@ class APIService(object):
         account_tag: str,
         transaction_tag: str,
         timestamp_end: datetime,
-    ) -> dict:
+    ) -> Optional[dict]:
         query = self.QUERY_END_ACCOUNT_TRANSACTION % dict(
             tenant=_dumps(tenant),
             account_tag=_dumps(account_tag),
@@ -478,7 +472,7 @@ class APIService(object):
         transaction: dict,
         duration: int = 0,
         fee: int = 0,
-    ) -> bool:
+    ) -> Optional[bool]:
         destination_rate = transaction['destination_rate']
         query_destination_rate = (
             self.QUERY_DESTINATION_RATE
@@ -524,12 +518,12 @@ class APIService(object):
         return (
             result['data']['upsertTransaction']['id'] is not None
             if result is not None
-            else False
+            else None
         )
 
     async def upsert_authorization_transaction(
         self, tenant: str, account_tag: str, transaction: dict
-    ) -> bool:
+    ) -> Optional[bool]:
         query = self.QUERY_UPSERT_AUTHORIZATION_TRANSACTION % dict(
             tenant=_dumps(tenant),
             account_tag=_dumps(account_tag),
@@ -545,12 +539,12 @@ class APIService(object):
         return (
             result['data']['upsertTransaction']['id'] is not None
             if result is not None
-            else False
+            else None
         )
 
     async def commit_account_transaction(
         self, tenant: str, account_tag: str, transaction_tag: str, fee: int
-    ) -> dict:
+    ) -> Optional[dict]:
         query = self.QUERY_COMMIT_ACCOUNT_TRANSACTION % dict(
             tenant=_dumps(tenant),
             account_tag=_dumps(account_tag),
@@ -561,5 +555,5 @@ class APIService(object):
         return (
             result['data']['commitAccountTransaction']['ok']
             if result is not None
-            else False
+            else None
         )

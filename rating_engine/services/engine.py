@@ -24,6 +24,12 @@ class EngineService(object):
         self._bus = bus
         self._rater = rater_service.RaterService(tz=tz)
 
+    def get_api(self) -> api_service.APIService:
+        return self._api
+
+    def set_api(self, api: api_service.APIService):
+        self._api = api
+
     async def authorization(
         self, request: schema.AuthorizationRequest
     ) -> schema.AuthorizationResponse:
@@ -317,14 +323,17 @@ class EngineService(object):
         if request.account_tag is None and request.destination_account_tag is None:
             return schema.RollbackTransactionResponse(ok=False)
         # write the db with the rollback of transaction
-        response = await self._api.rollback_account_transaction(
-            tenant=request.tenant,
-            account_tag=request.account_tag,
-            destination_account_tag=request.destination_account_tag,
-            transaction_tag=request.transaction_tag,
-        )
+        ok = True
+        for account_tag in (request.account_tag, request.destination_account_tag):
+            if account_tag is not None:
+                response = await self._api.rollback_account_transaction(
+                    tenant=request.tenant,
+                    account_tag=account_tag,
+                    transaction_tag=request.transaction_tag,
+                )
+                ok = ok and bool(response)
         # return ok
-        return schema.RollbackTransactionResponse(ok=bool(response))
+        return schema.RollbackTransactionResponse(ok=ok)
 
     async def end_transaction(
         self, request: schema.EndTransactionRequest
@@ -368,7 +377,6 @@ class EngineService(object):
                 failed_account_reason='NOT_FOUND',
             )
         # write the db with the end of transaction
-        ok = True
         for account, _ in ((account, False), (destination_account, True)):
             if account is None:
                 continue
@@ -381,8 +389,10 @@ class EngineService(object):
                     timestamp_end=request.timestamp_end,
                 )
                 if transaction is None:
-                    ok = False
-                    continue
+                    return schema.EndTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
                 transaction['timestamp_end'] = request.timestamp_end
                 fee, duration = self._rater.get_transaction_fee_and_duration(
                     transaction=transaction
@@ -404,7 +414,7 @@ class EngineService(object):
                         failed_account_reason='INTERNAL_ERROR',
                     )
         # return ok
-        return schema.EndTransactionResponse(ok=ok)
+        return schema.EndTransactionResponse(ok=True)
 
     async def record_transaction(
         self, request: schema.RecordTransactionRequest

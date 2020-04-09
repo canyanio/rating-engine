@@ -1,5 +1,7 @@
 import pytest  # type: ignore
 
+from datetime import datetime
+
 from rating_engine.enums import MethodName
 from rating_engine.schema import engine as schema
 from rating_engine.services import bus as bus_service
@@ -40,9 +42,12 @@ async def test_app_authorization_transaction(app):
     bus = bus_service.BusService(messagebus_uri=app.config['messagebus_uri'])
     await bus.connect()
     #
-    request = schema.AuthorizationTransactionRequest(transaction_tag="100")
+    request = schema.AuthorizationTransactionRequest(
+        transaction_tag="100", timestamp_auth=datetime.utcnow()
+    )
     response = await bus.rpc_call(
-        method=MethodName.AUTHORIZATION_TRANSACTION.value, kwargs={'request': dict(request)},
+        method=MethodName.AUTHORIZATION_TRANSACTION.value,
+        kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response['ok'] is True
@@ -57,7 +62,8 @@ async def test_app_authorization_transaction_invalid_data(app):
     #
     request = {}
     response = await bus.rpc_call(
-        method=MethodName.AUTHORIZATION_TRANSACTION.value, kwargs={'request': dict(request)},
+        method=MethodName.AUTHORIZATION_TRANSACTION.value,
+        kwargs={'request': dict(request)},
     )
     assert response is not None
     assert response.get('errors') is not None
