@@ -90,6 +90,10 @@ class EndTransactionRequest(BaseModel):
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
     timestamp_end: Optional[datetime] = None
+    source: Optional[str] = None
+    source_ip: Optional[str] = None
+    destination: Optional[str] = None
+    carrier_ip: Optional[str] = None
 
 
 class EndTransactionResponse(BaseModel):
@@ -107,6 +111,10 @@ class RollbackTransactionRequest(BaseModel):
     transaction_tag: str
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
+    source: Optional[str] = None
+    source_ip: Optional[str] = None
+    destination: Optional[str] = None
+    carrier_ip: Optional[str] = None
 
 
 class RollbackTransactionResponse(BaseModel):

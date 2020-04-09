@@ -6,6 +6,7 @@ from . import rater as rater_service
 
 from datetime import datetime
 from pytz import timezone
+from typing import Optional
 
 
 UTC = timezone('UTC')
@@ -168,12 +169,12 @@ class EngineService(object):
         self, request: schema.AuthorizationTransactionRequest
     ) -> schema.AuthorizationTransactionResponse:
         for (account_tag, inbound) in (
-            (request.account_tag, True),
-            (request.destination_account_tag, False),
+            (request.account_tag, False),
+            (request.destination_account_tag, True),
         ):
             if account_tag is None:
                 continue
-            await self._api.upsert_authorization_transaction(
+            response = await self._api.upsert_authorization_transaction(
                 tenant=request.tenant,
                 account_tag=account_tag,
                 transaction=dict(
@@ -185,14 +186,51 @@ class EngineService(object):
                     inbound=inbound,
                 ),
             )
+            if response is None:
+                return schema.AuthorizationTransactionResponse(
+                    failed_account_tag=account_tag,
+                    failed_account_reason='INTERNAL_ERROR',
+                )
         return schema.AuthorizationTransactionResponse(ok=True)
+
+    async def _restore_transaction_state_from_auth_request(
+        self, tenant: str, transaction_tag: str
+    ) -> Optional[dict]:
+        state: dict = {}
+        txs = await self._api.get_primary_transactions_by_tenant_and_tag(
+            tenant, transaction_tag
+        )
+        for tx in txs:
+            state['account_tag'] = None
+            state['destination_account_tag'] = None
+            if not tx['inbound']:
+                state['account_tag'] = tx['account_tag']
+            elif tx['inbound']:
+                state['destination_account_tag'] = tx['account_tag']
+            state.setdefault('source', tx['source'])
+            state.setdefault('source_ip', tx['source_ip'])
+            state.setdefault('destination', tx['destination'])
+            state.setdefault('carrier_ip', tx['carrier_ip'])
+        return state if state != {} else None
 
     async def begin_transaction(
         self, request: schema.BeginTransactionRequest
     ) -> schema.BeginTransactionResponse:
         if request.timestamp_begin is None:
             request.timestamp_begin = UTC.localize(datetime.utcnow())
-        # no account nor destination account specified
+        # no account nor destination account specified, api look-up
+        if request.account_tag is None and request.destination_account_tag is None:
+            state = await self._restore_transaction_state_from_auth_request(
+                request.tenant, request.transaction_tag
+            )
+            if state is not None:
+                request.account_tag = state['account_tag']
+                request.destination_account_tag = state['destination_account_tag']
+                request.source = state['source']
+                request.source_ip = state['source_ip']
+                request.destination = state['destination']
+                request.carrier_ip = state['carrier_ip']
+        # still no account nor destination account specified, give up
         if request.account_tag is None and request.destination_account_tag is None:
             return schema.BeginTransactionResponse(ok=False)
         # get the account and destination account
@@ -237,7 +275,7 @@ class EngineService(object):
                 continue
             linked_accounts = account.pop('linked_accounts', [])
             for n, item in enumerate([account] + linked_accounts):
-                await self._api.begin_account_transaction(
+                response = await self._api.begin_account_transaction(
                     tenant=request.tenant,
                     account_tag=item['account_tag'],
                     destination_rate=item.get('destination_rate')
@@ -252,11 +290,32 @@ class EngineService(object):
                     inbound=inbound,
                     primary=(n == 0),
                 )
+                if response is None:
+                    return schema.BeginTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
+
         return schema.BeginTransactionResponse(ok=True)
 
     async def rollback_transaction(
         self, request: schema.RollbackTransactionRequest
     ) -> schema.RollbackTransactionResponse:
+        # no account nor destination account specified, api look-up
+        if request.account_tag is None and request.destination_account_tag is None:
+            state = await self._restore_transaction_state_from_auth_request(
+                request.tenant, request.transaction_tag
+            )
+            if state is not None:
+                request.account_tag = state['account_tag']
+                request.destination_account_tag = state['destination_account_tag']
+                request.source = state['source']
+                request.source_ip = state['source_ip']
+                request.destination = state['destination']
+                request.carrier_ip = state['carrier_ip']
+        # still no account nor destination account specified, give up
+        if request.account_tag is None and request.destination_account_tag is None:
+            return schema.RollbackTransactionResponse(ok=False)
         # write the db with the rollback of transaction
         response = await self._api.rollback_account_transaction(
             tenant=request.tenant,
@@ -272,7 +331,19 @@ class EngineService(object):
     ) -> schema.EndTransactionResponse:
         if request.timestamp_end is None:
             request.timestamp_end = UTC.localize(datetime.utcnow())
-        # no account nor destination account specified
+        # no account nor destination account specified, api look-up
+        if request.account_tag is None and request.destination_account_tag is None:
+            state = await self._restore_transaction_state_from_auth_request(
+                request.tenant, request.transaction_tag
+            )
+            if state is not None:
+                request.account_tag = state['account_tag']
+                request.destination_account_tag = state['destination_account_tag']
+                request.source = state['source']
+                request.source_ip = state['source_ip']
+                request.destination = state['destination']
+                request.carrier_ip = state['carrier_ip']
+        # still no account nor destination account specified, give up
         if request.account_tag is None and request.destination_account_tag is None:
             return schema.EndTransactionResponse(ok=False)
         # get the account and destination account
@@ -316,12 +387,22 @@ class EngineService(object):
                 fee, duration = self._rater.get_transaction_fee_and_duration(
                     transaction=transaction
                 )
-                await self._api.upsert_transaction(
+                upsert_transaction = await self._api.upsert_transaction(
                     request.tenant, item['account_tag'], transaction, duration, fee
                 )
-                await self._api.commit_account_transaction(
+                if upsert_transaction is None:
+                    return schema.EndTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
+                commit_account_transaction = await self._api.commit_account_transaction(
                     request.tenant, item['account_tag'], request.transaction_tag, fee
                 )
+                if commit_account_transaction is None:
+                    return schema.EndTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_account_reason='INTERNAL_ERROR',
+                    )
         # return ok
         return schema.EndTransactionResponse(ok=ok)
 

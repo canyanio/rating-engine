@@ -2,7 +2,7 @@ import aiohttp
 
 from datetime import datetime
 from json import dumps
-from typing import Any, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 from pytz import timezone
 
 
@@ -214,6 +214,7 @@ class APIService(object):
             destination
             tags
             in_progress
+            primary
             inbound
             timestamp_begin
             timestamp_end
@@ -229,6 +230,20 @@ class APIService(object):
         fee: %(fee)s
     ) {
         ok
+    }
+}"""
+
+    QUERY_GET_PRIMARY_TRANSACTIONS_BY_TENANT_AND_TAG = """query {
+    allTransactions(filter:{tenant: %(tenant)s, transaction_tag: %(transaction_tag)s, primary: true}) {
+        tenant
+        transaction_tag
+        account_tag
+        source
+        source_ip
+        destination
+        carrier_ip
+        inbound
+        primary
     }
 }"""
 
@@ -447,6 +462,15 @@ class APIService(object):
             else None
         )
 
+    async def get_primary_transactions_by_tenant_and_tag(
+        self, tenant: str, transaction_tag: str,
+    ) -> List[dict]:
+        query = self.QUERY_GET_PRIMARY_TRANSACTIONS_BY_TENANT_AND_TAG % dict(
+            tenant=_dumps(tenant), transaction_tag=_dumps(transaction_tag),
+        )
+        result = await self._query(query=query)
+        return list(result['data']['allTransactions']) if result is not None else []
+
     async def upsert_transaction(
         self,
         tenant: str,
@@ -537,5 +561,5 @@ class APIService(object):
         return (
             result['data']['commitAccountTransaction']['ok']
             if result is not None
-            else None
+            else False
         )
