@@ -1,12 +1,12 @@
+from datetime import datetime
+from pytz import timezone
+from typing import Optional, List
+
 from ..schema import engine as schema
 from ..enums import MethodName, RPCCallPriority
 from . import api as api_service
 from . import bus as bus_service
 from . import rater as rater_service
-
-from datetime import datetime
-from pytz import timezone
-from typing import Optional
 
 
 UTC = timezone('UTC')
@@ -53,12 +53,12 @@ class EngineService(object):
         if request.account_tag and account is None:
             return schema.AuthorizationResponse(
                 unauthorized_account_tag=request.account_tag,
-                unauthorized_account_reason='NOT_FOUND',
+                unauthorized_reason='NOT_FOUND',
             )
         elif request.account_tag and account is not None and account['active'] is False:
             return schema.AuthorizationResponse(
                 unauthorized_account_tag=request.account_tag,
-                unauthorized_account_reason='NOT_ACTIVE',
+                unauthorized_reason='NOT_ACTIVE',
             )
         elif (
             request.account_tag
@@ -67,13 +67,13 @@ class EngineService(object):
         ):
             return schema.AuthorizationResponse(
                 unauthorized_account_tag=request.account_tag,
-                unauthorized_account_reason='UNREACHEABLE_DESTINATION',
+                unauthorized_reason='UNREACHEABLE_DESTINATION',
             )
         # check the destination account
         if request.destination_account_tag and destination_account is None:
             return schema.AuthorizationResponse(
                 unauthorized_account_tag=request.destination_account_tag,
-                unauthorized_account_reason='NOT_FOUND',
+                unauthorized_reason='NOT_FOUND',
             )
         elif (
             request.destination_account_tag
@@ -82,7 +82,7 @@ class EngineService(object):
         ):
             return schema.AuthorizationResponse(
                 unauthorized_account_tag=request.destination_account_tag,
-                unauthorized_account_reason='NOT_ACTIVE',
+                unauthorized_reason='NOT_ACTIVE',
             )
         # least cost routing
         carriers = (
@@ -96,10 +96,21 @@ class EngineService(object):
         # loop on account and its linked accounts
         balance = None
         authorization_response = None
+        account_tags: List[str] = []
+        destination_account_tags: List[str] = []
         max_available_units = self._rater.MAX_UNITS_FOR_TRANSACTIONS
-        for account_object, inbound in ((account, False), (destination_account, True)):
+        for account_object, inbound, tags in (
+            (account, False, account_tags),
+            (destination_account, True, destination_account_tags),
+        ):
             if account_object is None:
                 continue
+            # add tags to the request
+            tags.extend((request.tags or []) + (account_object['tags'] or []))
+            # authorization_response is populated if the auth failed, skip checks
+            if authorization_response is not None:
+                continue
+            # loop on account and link account to verify authorization
             linked_accounts = account_object.pop('linked_accounts', [])
             for _, item in enumerate([account_object] + linked_accounts):
                 # apply pending transactions to balance
@@ -116,7 +127,7 @@ class EngineService(object):
                     if account_authorized is False:
                         authorization_response = schema.AuthorizationResponse(
                             unauthorized_account_tag=item['account_tag'],
-                            unauthorized_account_reason='TOO_MANY_RUNNING_TRANSACTIONS',
+                            unauthorized_reason='TOO_MANY_RUNNING_TRANSACTIONS',
                         )
                         break
                 # calculate authorization and max_available_units
@@ -130,38 +141,38 @@ class EngineService(object):
                     if account_authorized is False:
                         authorization_response = schema.AuthorizationResponse(
                             unauthorized_account_tag=item['account_tag'],
-                            unauthorized_account_reason='BALANCE_INSUFFICIENT',
+                            unauthorized_reason='BALANCE_INSUFFICIENT',
                         )
                         break
-            # authorization_response is populated if the auth failed, break
-            if authorization_response is not None:
-                break
         # authorization_response is none, auth succeeded
         if authorization_response is None:
             authorization_response = schema.AuthorizationResponse(
                 authorized=bool(account),
                 authorized_destination=bool(destination_account),
                 balance=balance,
-                max_available_units=max_available_units,
                 carriers=carriers,
+                max_available_units=max_available_units,
             )
+
         # record the authorization transaction (async)
         auth_tx_request = schema.AuthorizationTransactionRequest(
             tenant=request.tenant,
             transaction_tag=request.transaction_tag,
             account_tag=request.account_tag,
+            account_tags=account_tags,
             destination_account_tag=request.destination_account_tag,
+            destination_account_tags=destination_account_tags,
             source=request.source,
+            source_ip=request.source_ip,
             destination=request.destination,
+            carrier_ip=request.carrier_ip,
             timestamp_auth=request.timestamp_auth,
             tags=request.tags,
-            primary=True,
-            #
             authorized=authorization_response.authorized,
-            # authorized_destination=authorization_response.destination_account,
+            authorized_destination=authorization_response.authorized_destination,
             balance=authorization_response.balance,
-            # max_available_units=authorization_response.max_available_units,
             carriers=authorization_response.carriers,
+            max_available_units=authorization_response.max_available_units,
         )
         await self._bus.rpc_call(
             MethodName.AUTHORIZATION_TRANSACTION.value,
@@ -174,9 +185,14 @@ class EngineService(object):
     async def authorization_transaction(
         self, request: schema.AuthorizationTransactionRequest
     ) -> schema.AuthorizationTransactionResponse:
-        for (account_tag, inbound) in (
-            (request.account_tag, False),
-            (request.destination_account_tag, True),
+        for (account_tag, authorized, inbound, account_tags) in (
+            (request.account_tag, request.authorized, False, request.account_tags),
+            (
+                request.destination_account_tag,
+                request.authorized_destination,
+                True,
+                request.destination_account_tags,
+            ),
         ):
             if account_tag is None:
                 continue
@@ -186,16 +202,22 @@ class EngineService(object):
                 transaction=dict(
                     transaction_tag=request.transaction_tag,
                     source=request.source,
+                    source_ip=request.source,
                     destination=request.destination,
-                    tags=request.tags,
+                    carrier_ip=request.carrier_ip,
+                    tags=account_tags,
                     timestamp_auth=request.timestamp_auth,
+                    authorized=authorized,
+                    unauthorized_reason=request.unauthorized_reason
+                    if request.unauthorized_account_tag == account_tag
+                    else None,
                     inbound=inbound,
+                    primary=True,
                 ),
             )
             if response is None:
                 return schema.AuthorizationTransactionResponse(
-                    failed_account_tag=account_tag,
-                    failed_account_reason='INTERNAL_ERROR',
+                    failed_account_tag=account_tag, failed_reason='INTERNAL_ERROR',
                 )
         return schema.AuthorizationTransactionResponse(ok=True)
 
@@ -252,19 +274,17 @@ class EngineService(object):
         # check the account
         if request.account_tag and account is None:
             return schema.BeginTransactionResponse(
-                failed_account_tag=request.account_tag,
-                failed_account_reason='NOT_FOUND',
+                failed_account_tag=request.account_tag, failed_reason='NOT_FOUND',
             )
         elif request.account_tag and account is not None and account['active'] is False:
             return schema.BeginTransactionResponse(
-                failed_account_tag=request.account_tag,
-                failed_account_reason='NOT_ACTIVE',
+                failed_account_tag=request.account_tag, failed_reason='NOT_ACTIVE',
             )
         # check the destination account
         if request.destination_account_tag and destination_account is None:
             return schema.BeginTransactionResponse(
                 failed_account_tag=request.destination_account_tag,
-                failed_account_reason='NOT_FOUND',
+                failed_reason='NOT_FOUND',
             )
         elif (
             request.destination_account_tag
@@ -273,7 +293,7 @@ class EngineService(object):
         ):
             return schema.BeginTransactionResponse(
                 failed_account_tag=request.destination_account_tag,
-                failed_account_reason='NOT_ACTIVE',
+                failed_reason='NOT_ACTIVE',
             )
         # write the db with the transaction
         for account, inbound in ((account, False), (destination_account, True)):
@@ -299,7 +319,7 @@ class EngineService(object):
                 if response is None:
                     return schema.BeginTransactionResponse(
                         failed_account_tag=item['account_tag'],
-                        failed_account_reason='INTERNAL_ERROR',
+                        failed_reason='INTERNAL_ERROR',
                     )
 
         return schema.BeginTransactionResponse(ok=True)
@@ -315,10 +335,6 @@ class EngineService(object):
             if state is not None:
                 request.account_tag = state['account_tag']
                 request.destination_account_tag = state['destination_account_tag']
-                request.source = state['source']
-                request.source_ip = state['source_ip']
-                request.destination = state['destination']
-                request.carrier_ip = state['carrier_ip']
         # still no account nor destination account specified, give up
         if request.account_tag is None and request.destination_account_tag is None:
             return schema.RollbackTransactionResponse(ok=False)
@@ -348,10 +364,6 @@ class EngineService(object):
             if state is not None:
                 request.account_tag = state['account_tag']
                 request.destination_account_tag = state['destination_account_tag']
-                request.source = state['source']
-                request.source_ip = state['source_ip']
-                request.destination = state['destination']
-                request.carrier_ip = state['carrier_ip']
         # still no account nor destination account specified, give up
         if request.account_tag is None and request.destination_account_tag is None:
             return schema.EndTransactionResponse(ok=False)
@@ -367,14 +379,13 @@ class EngineService(object):
         # check the account
         if request.account_tag and account is None:
             return schema.EndTransactionResponse(
-                failed_account_tag=request.account_tag,
-                failed_account_reason='NOT_FOUND',
+                failed_account_tag=request.account_tag, failed_reason='NOT_FOUND',
             )
         # check the destination account
         if request.destination_account_tag and destination_account is None:
             return schema.EndTransactionResponse(
                 failed_account_tag=request.destination_account_tag,
-                failed_account_reason='NOT_FOUND',
+                failed_reason='NOT_FOUND',
             )
         # write the db with the end of transaction
         for account, _ in ((account, False), (destination_account, True)):
@@ -391,19 +402,21 @@ class EngineService(object):
                 if transaction is None:
                     return schema.EndTransactionResponse(
                         failed_account_tag=item['account_tag'],
-                        failed_account_reason='INTERNAL_ERROR',
+                        failed_reason='INTERNAL_ERROR',
                     )
                 transaction['timestamp_end'] = request.timestamp_end
                 fee, duration = self._rater.get_transaction_fee_and_duration(
                     transaction=transaction
                 )
+                tx = transaction.copy()
+                tx['tags'] = (transaction['tags'] or []) + (item['tags'] or [])
                 upsert_transaction = await self._api.upsert_transaction(
-                    request.tenant, item['account_tag'], transaction, duration, fee
+                    request.tenant, item['account_tag'], tx, duration, fee
                 )
                 if upsert_transaction is None:
                     return schema.EndTransactionResponse(
                         failed_account_tag=item['account_tag'],
-                        failed_account_reason='INTERNAL_ERROR',
+                        failed_reason='INTERNAL_ERROR',
                     )
                 commit_account_transaction = await self._api.commit_account_transaction(
                     request.tenant, item['account_tag'], request.transaction_tag, fee
@@ -411,7 +424,7 @@ class EngineService(object):
                 if commit_account_transaction is None:
                     return schema.EndTransactionResponse(
                         failed_account_tag=item['account_tag'],
-                        failed_account_reason='INTERNAL_ERROR',
+                        failed_reason='INTERNAL_ERROR',
                     )
         # return ok
         return schema.EndTransactionResponse(ok=True)
@@ -423,4 +436,74 @@ class EngineService(object):
             request.timestamp_begin = UTC.localize(datetime.utcnow())
         if request.timestamp_end is None:
             request.timestamp_end = UTC.localize(datetime.utcnow())
-        return schema.RecordTransactionResponse()
+        # no account nor destination account specified, give up
+        if request.account_tag is None and request.destination_account_tag is None:
+            return schema.RecordTransactionResponse(ok=False)
+        # get the account and destination account
+        (
+            account,
+            destination_account,
+        ) = await self._api.get_account_and_destination_account_by_id(
+            request.tenant,
+            account_tag=request.account_tag,
+            destination_account_tag=request.destination_account_tag,
+            destination=request.destination,
+        )
+        # check the account
+        if request.account_tag and account is None:
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.account_tag, failed_reason='NOT_FOUND',
+            )
+        elif request.account_tag and account is not None and account['active'] is False:
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.account_tag, failed_reason='NOT_ACTIVE',
+            )
+        # check the destination account
+        if request.destination_account_tag and destination_account is None:
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.destination_account_tag,
+                failed_reason='NOT_FOUND',
+            )
+        elif (
+            request.destination_account_tag
+            and destination_account is not None
+            and destination_account['active'] is False
+        ):
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.destination_account_tag,
+                failed_reason='NOT_ACTIVE',
+            )
+        # write the db with the Record of transaction
+        for account, _ in ((account, False), (destination_account, True)):
+            if account is None:
+                continue
+            linked_accounts = account.pop('linked_accounts', [])
+            for n, item in enumerate([account] + linked_accounts):
+                transaction = dict(
+                    tenant=request.tenant,
+                    transaction_tag=request.transaction_tag,
+                    account_tag=request.account_tag,
+                    destination_account_tag=request.destination_account_tag,
+                    destination_rate=item.get('destination_rate'),
+                    source=request.source,
+                    source_ip=request.source_ip,
+                    destination=request.destination,
+                    carrier_ip=request.carrier_ip,
+                    tags=request.tags + item['tags'],
+                    timestamp_begin=request.timestamp_begin,
+                    timestamp_end=request.timestamp_end,
+                    primary=(n == 0),
+                )
+                fee, duration = self._rater.get_transaction_fee_and_duration(
+                    transaction=transaction
+                )
+                upsert_transaction = await self._api.upsert_transaction(
+                    request.tenant, item['account_tag'], transaction, duration, fee
+                )
+                if upsert_transaction is None:
+                    return schema.RecordTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_reason='INTERNAL_ERROR',
+                    )
+        # return ok
+        return schema.RecordTransactionResponse(ok=True)

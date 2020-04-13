@@ -126,30 +126,30 @@ class APIService(object):
 
     QUERY_DESTINATION_RATE = """
         destination_rate: {
-            carrier_tag: %(destination_rate_carrier_tag)s,
-            pricelist_tag: %(destination_rate_pricelist_tag)s,
-            prefix: %(destination_rate_prefix)s,
-            description: %(destination_rate_description)s,
-            connect_fee: %(destination_rate_connect_fee)s,
-            rate: %(destination_rate_rate)s,
-            rate_increment: %(destination_rate_rate_increment)s,
+            carrier_tag: %(destination_rate_carrier_tag)s
+            pricelist_tag: %(destination_rate_pricelist_tag)s
+            prefix: %(destination_rate_prefix)s
+            description: %(destination_rate_description)s
+            connect_fee: %(destination_rate_connect_fee)s
+            rate: %(destination_rate_rate)s
+            rate_increment: %(destination_rate_rate_increment)s
             interval_start: %(destination_rate_interval_start)s
         },
     """
 
     QUERY_BEGIN_ACCOUNT_TRANSACTION = """mutation {
     beginAccountTransaction(
-        tenant: %(tenant)s,
-        account_tag: %(account_tag)s,
+        tenant: %(tenant)s
+        account_tag: %(account_tag)s
         transaction: {
-            transaction_tag: %(transaction_tag)s,
+            transaction_tag: %(transaction_tag)s
             %(destination_rate)s
-            source: %(source)s,
-            source_ip: %(source_ip)s,
-            destination: %(destination)s,
-            carrier_ip: %(carrier_ip)s,
-            timestamp_begin: %(timestamp_begin)s,
-            primary: %(primary)s,
+            source: %(source)s
+            source_ip: %(source_ip)s
+            destination: %(destination)s
+            carrier_ip: %(carrier_ip)s
+            timestamp_begin: %(timestamp_begin)s
+            primary: %(primary)s
             inbound: %(inbound)s
         }
     ) {
@@ -179,8 +179,8 @@ class APIService(object):
 
     QUERY_ROLLBACK_ACCOUNT_TRANSACTION = """mutation {
     rollbackAccountTransaction(
-        tenant: %(tenant)s,
-        account_tag: %(account_tag)s,
+        tenant: %(tenant)s
+        account_tag: %(account_tag)s
         transaction_tag: %(transaction_tag)s
     ) {
         ok
@@ -189,9 +189,9 @@ class APIService(object):
 
     QUERY_END_ACCOUNT_TRANSACTION = """mutation {
     endAccountTransaction(
-        tenant: %(tenant)s,
-        account_tag: %(account_tag)s,
-        transaction_tag: %(transaction_tag)s,
+        tenant: %(tenant)s
+        account_tag: %(account_tag)s
+        transaction_tag: %(transaction_tag)s
         timestamp_end: %(timestamp_end)s
     ) {
         ok
@@ -223,9 +223,9 @@ class APIService(object):
 
     QUERY_COMMIT_ACCOUNT_TRANSACTION = """mutation {
     commitAccountTransaction(
-        tenant: %(tenant)s,
-        account_tag: %(account_tag)s,
-        transaction_tag: %(transaction_tag)s,
+        tenant: %(tenant)s
+        account_tag: %(account_tag)s
+        transaction_tag: %(transaction_tag)s
         fee: %(fee)s
     ) {
         ok
@@ -248,23 +248,21 @@ class APIService(object):
 
     QUERY_UPSERT_TRANSACTION = """mutation {
     upsertTransaction (
-        tenant: %(tenant)s,
-        transaction_tag: %(transaction_tag)s,
-        account_tag: %(account_tag)s,
+        tenant: %(tenant)s
+        transaction_tag: %(transaction_tag)s
+        account_tag: %(account_tag)s
         %(destination_rate)s
-        source: %(source)s,
-        source_ip: %(source_ip)s,
-        destination: %(destination)s,
-        carrier_ip: %(carrier_ip)s,
-        tags: %(tags)s,
+        source: %(source)s
+        source_ip: %(source_ip)s
+        destination: %(destination)s
+        carrier_ip: %(carrier_ip)s
+        tags: %(tags)s
         timestamp_begin: %(timestamp_begin)s
         timestamp_end: %(timestamp_end)s
-        primary: %(primary)s,
-        inbound: %(inbound)s,
-        duration: %(duration)s,
-        fee: %(fee)s,
-        failed: %(failed)s,
-        failed_reason: %(failed_reason)s
+        primary: %(primary)s
+        inbound: %(inbound)s
+        duration: %(duration)s
+        fee: %(fee)s
     ) {
         id
     }
@@ -272,15 +270,19 @@ class APIService(object):
 
     QUERY_UPSERT_AUTHORIZATION_TRANSACTION = """mutation {
     upsertTransaction (
-        tenant: %(tenant)s,
-        transaction_tag: %(transaction_tag)s,
-        account_tag: %(account_tag)s,
-        source: %(source)s,
-        destination: %(destination)s,
-        tags: %(tags)s,
+        tenant: %(tenant)s
+        transaction_tag: %(transaction_tag)s
+        account_tag: %(account_tag)s
+        source: %(source)s
+        source_ip: %(source_ip)s
+        destination: %(destination)s
+        carrier_ip: %(carrier_ip)s
+        tags: %(tags)s
         timestamp_auth: %(timestamp_auth)s
-        primary: %(primary)s,
-        inbound: %(inbound)s,
+        primary: %(primary)s
+        inbound: %(inbound)s
+        authorized: %(authorized)s
+        unauthorized_reason: %(unauthorized_reason)s
     ) {
         id
     }
@@ -511,8 +513,6 @@ class APIService(object):
             inbound='true' if transaction.get('inbound') else 'false',
             duration=_dumps(duration, 0),
             fee=_dumps(fee),
-            failed='true' if transaction.get('failed') else 'false',
-            failed_reason=_dumps(transaction.get('failed_reason')),
         )
         result = await self._query(query=query)
         return (
@@ -529,10 +529,14 @@ class APIService(object):
             account_tag=_dumps(account_tag),
             transaction_tag=_dumps(transaction['transaction_tag']),
             source=_dumps(transaction['source']),
+            source_ip=_dumps(transaction['source_ip']),
             destination=_dumps(transaction['destination']),
+            carrier_ip=_dumps(transaction['carrier_ip']),
             tags=_dumps(transaction['tags'] or []),
             timestamp_auth=_dumps(transaction['timestamp_auth']),
-            primary='true',
+            authorized=_dumps(transaction['authorized']),
+            unauthorized_reason=_dumps(transaction['unauthorized_reason']),
+            primary='true' if transaction.get('primary') else 'false',
             inbound='true' if transaction.get('inbound') else 'false',
         )
         result = await self._query(query=query)

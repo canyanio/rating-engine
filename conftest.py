@@ -47,8 +47,17 @@ class MockedBus(object):
         pass
 
 
+@pytest.fixture
+async def mongoclient():
+    from pymongo import MongoClient
+
+    mongoclient = MongoClient(MONGODB_URI)
+    mongoclient.drop_database(MONGODB_DB)
+    yield mongoclient
+
+
 @pytest.fixture(scope="function")
-async def app():
+async def app(mongoclient):
     app_obj = get_app(
         dict(
             api_url=API_URL,
@@ -77,12 +86,7 @@ async def mocked_bus():
 
 
 @pytest.fixture
-async def engine(api, mocked_bus):
-    from pymongo import MongoClient
-
-    mongoclient = MongoClient(MONGODB_URI)
-    mongoclient.drop_database(MONGODB_DB)
-    #
+async def engine(api, mongoclient, mocked_bus):
     engine = engine_service.EngineService(api, mocked_bus)
     yield engine
 
