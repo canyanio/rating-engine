@@ -257,14 +257,12 @@ class APIService(object):
         destination: %(destination)s,
         carrier_ip: %(carrier_ip)s,
         tags: %(tags)s,
-        timestamp_begin: %(timestamp_begin)s
-        timestamp_end: %(timestamp_end)s
+        timestamp_begin: %(timestamp_begin)s,
+        timestamp_end: %(timestamp_end)s,
         primary: %(primary)s,
         inbound: %(inbound)s,
         duration: %(duration)s,
-        fee: %(fee)s,
-        failed: %(failed)s,
-        failed_reason: %(failed_reason)s
+        fee: %(fee)s
     ) {
         id
     }
@@ -511,8 +509,6 @@ class APIService(object):
             inbound='true' if transaction.get('inbound') else 'false',
             duration=_dumps(duration, 0),
             fee=_dumps(fee),
-            failed='true' if transaction.get('failed') else 'false',
-            failed_reason=_dumps(transaction.get('failed_reason')),
         )
         result = await self._query(query=query)
         return (

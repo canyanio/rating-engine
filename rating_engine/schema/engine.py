@@ -132,11 +132,11 @@ class RecordTransactionRequest(BaseModel):
     destination_account_tag: Optional[str] = None
     source: Optional[str] = None
     destination: Optional[str] = None
+    authorized: bool = False
+    unauthorized_reason: Optional[str] = None
     timestamp_auth: Optional[datetime] = None
     timestamp_begin: Optional[datetime] = None
     timestamp_end: Optional[datetime] = None
-    failed: bool = False
-    failed_reason: Optional[str] = None
 
 
 class RecordTransactionResponse(BaseModel):
