@@ -50,6 +50,7 @@ class MockedBus(object):
 @pytest.fixture
 async def mongoclient():
     from pymongo import MongoClient
+
     mongoclient = MongoClient(MONGODB_URI)
     mongoclient.drop_database(MONGODB_DB)
     yield mongoclient

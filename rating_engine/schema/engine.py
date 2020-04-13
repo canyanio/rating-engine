@@ -37,7 +37,9 @@ class AuthorizationTransactionRequest(BaseModel):
     tenant: str = 'default'
     transaction_tag: str
     account_tag: Optional[str] = None
+    account_tags: List[str] = []
     destination_account_tag: Optional[str] = None
+    destination_account_tags: List[str] = []
     source: Optional[str] = None
     source_ip: Optional[str] = None
     destination: Optional[str] = None

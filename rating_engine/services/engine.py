@@ -1,12 +1,12 @@
+from datetime import datetime
+from pytz import timezone
+from typing import Optional, List
+
 from ..schema import engine as schema
 from ..enums import MethodName, RPCCallPriority
 from . import api as api_service
 from . import bus as bus_service
 from . import rater as rater_service
-
-from datetime import datetime
-from pytz import timezone
-from typing import Optional
 
 
 UTC = timezone('UTC')
@@ -96,10 +96,21 @@ class EngineService(object):
         # loop on account and its linked accounts
         balance = None
         authorization_response = None
+        account_tags: List[str] = []
+        destination_account_tags: List[str] = []
         max_available_units = self._rater.MAX_UNITS_FOR_TRANSACTIONS
-        for account_object, inbound in ((account, False), (destination_account, True)):
+        for account_object, inbound, tags in (
+            (account, False, account_tags),
+            (destination_account, True, destination_account_tags),
+        ):
             if account_object is None:
                 continue
+            # add tags to the request
+            tags.extend((request.tags or []) + (account_object['tags'] or []))
+            # authorization_response is populated if the auth failed, skip checks
+            if authorization_response is not None:
+                continue
+            # loop on account and link account to verify authorization
             linked_accounts = account_object.pop('linked_accounts', [])
             for _, item in enumerate([account_object] + linked_accounts):
                 # apply pending transactions to balance
@@ -133,9 +144,6 @@ class EngineService(object):
                             unauthorized_reason='BALANCE_INSUFFICIENT',
                         )
                         break
-            # authorization_response is populated if the auth failed, break
-            if authorization_response is not None:
-                break
         # authorization_response is none, auth succeeded
         if authorization_response is None:
             authorization_response = schema.AuthorizationResponse(
@@ -145,12 +153,15 @@ class EngineService(object):
                 carriers=carriers,
                 max_available_units=max_available_units,
             )
+
         # record the authorization transaction (async)
         auth_tx_request = schema.AuthorizationTransactionRequest(
             tenant=request.tenant,
             transaction_tag=request.transaction_tag,
             account_tag=request.account_tag,
+            account_tags=account_tags,
             destination_account_tag=request.destination_account_tag,
+            destination_account_tags=destination_account_tags,
             source=request.source,
             source_ip=request.source_ip,
             destination=request.destination,
@@ -174,9 +185,14 @@ class EngineService(object):
     async def authorization_transaction(
         self, request: schema.AuthorizationTransactionRequest
     ) -> schema.AuthorizationTransactionResponse:
-        for (account_tag, authorized, inbound) in (
-            (request.account_tag, request.authorized, False),
-            (request.destination_account_tag, request.authorized_destination, True),
+        for (account_tag, authorized, inbound, account_tags) in (
+            (request.account_tag, request.authorized, False, request.account_tags),
+            (
+                request.destination_account_tag,
+                request.authorized_destination,
+                True,
+                request.destination_account_tags,
+            ),
         ):
             if account_tag is None:
                 continue
@@ -189,18 +205,19 @@ class EngineService(object):
                     source_ip=request.source,
                     destination=request.destination,
                     carrier_ip=request.carrier_ip,
-                    tags=request.tags,
+                    tags=account_tags,
                     timestamp_auth=request.timestamp_auth,
                     authorized=authorized,
-                    unauthorized_reason=request.unauthorized_reason if request.unauthorized_account_tag == account_tag else None,
+                    unauthorized_reason=request.unauthorized_reason
+                    if request.unauthorized_account_tag == account_tag
+                    else None,
                     inbound=inbound,
                     primary=True,
                 ),
             )
             if response is None:
                 return schema.AuthorizationTransactionResponse(
-                    failed_account_tag=account_tag,
-                    failed_reason='INTERNAL_ERROR',
+                    failed_account_tag=account_tag, failed_reason='INTERNAL_ERROR',
                 )
         return schema.AuthorizationTransactionResponse(ok=True)
 
@@ -257,13 +274,11 @@ class EngineService(object):
         # check the account
         if request.account_tag and account is None:
             return schema.BeginTransactionResponse(
-                failed_account_tag=request.account_tag,
-                failed_reason='NOT_FOUND',
+                failed_account_tag=request.account_tag, failed_reason='NOT_FOUND',
             )
         elif request.account_tag and account is not None and account['active'] is False:
             return schema.BeginTransactionResponse(
-                failed_account_tag=request.account_tag,
-                failed_reason='NOT_ACTIVE',
+                failed_account_tag=request.account_tag, failed_reason='NOT_ACTIVE',
             )
         # check the destination account
         if request.destination_account_tag and destination_account is None:
@@ -364,8 +379,7 @@ class EngineService(object):
         # check the account
         if request.account_tag and account is None:
             return schema.EndTransactionResponse(
-                failed_account_tag=request.account_tag,
-                failed_reason='NOT_FOUND',
+                failed_account_tag=request.account_tag, failed_reason='NOT_FOUND',
             )
         # check the destination account
         if request.destination_account_tag and destination_account is None:
@@ -394,8 +408,10 @@ class EngineService(object):
                 fee, duration = self._rater.get_transaction_fee_and_duration(
                     transaction=transaction
                 )
+                tx = transaction.copy()
+                tx['tags'] = (transaction['tags'] or []) + (item['tags'] or [])
                 upsert_transaction = await self._api.upsert_transaction(
-                    request.tenant, item['account_tag'], transaction, duration, fee
+                    request.tenant, item['account_tag'], tx, duration, fee
                 )
                 if upsert_transaction is None:
                     return schema.EndTransactionResponse(

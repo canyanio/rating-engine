@@ -301,6 +301,7 @@ async def test_authorization_failed_account_balance_insufficient(
         'kwargs': {
             'request': {
                 'account_tag': '1000',
+                'account_tags': [],
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
@@ -308,6 +309,125 @@ async def test_authorization_failed_account_balance_insufficient(
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': None,
+                'destination_account_tags': [],
+                'max_available_units': 0,
+                'source': None,
+                'source_ip': None,
+                'tags': [],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_reason': None,
+                'unauthorized_account_tag': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    } == mocked_bus.calls[0]
+
+
+@pytest.mark.asyncio
+async def test_authorization_failed_account_balance_insufficient_with_destination_tag(
+    engine, graphql, mocked_bus
+):
+    tenant = "default"
+    transaction_tag = "100"
+    account_tag = "1000"
+    destination_account_tag = "1001"
+    destination = "393291234567"
+    #
+    response = await graphql(
+        """
+        mutation {
+            upsertCarrier(
+                tenant:%(tenant)s,
+                carrier_tag:"TESTS",
+                host:"carrier1.canyan.io",
+                port:5060,
+                protocol:UDP
+                active:true
+            ) {
+                id
+            }
+            upsertPricelist(
+                tenant:%(tenant)s,
+                pricelist_tag:"TESTS",
+                currency:EUR
+            ) {
+                id
+            }
+            upsertPricelistRate(
+                tenant:%(tenant)s,
+                pricelist_tag:"TESTS",
+                carrier_tag:"TESTS",
+                prefix:"39"
+                active:true,
+                connect_fee:0,
+                rate:1,
+                rate_increment:1,
+                interval_start:0,
+                description:"TESTS_ALL_DESTINATIONS"
+            ) {
+                id
+            }
+            destination:upsertAccount(
+                tenant: %(tenant)s,
+                account_tag: %(destination_account_tag)s,
+                type: PREPAID,
+                pricelist_tags: ["TESTS"]
+                balance: 0,
+                active: true
+            ) {
+                id
+            }
+            upsertAccount(
+                tenant: %(tenant)s,
+                account_tag: %(account_tag)s,
+                type: PREPAID,
+                pricelist_tags: ["TESTS"]
+                balance: 0,
+                active: true
+            ) {
+                id
+            }
+        }"""
+        % {
+            'tenant': dumps(tenant),
+            'account_tag': dumps(account_tag),
+            'destination_account_tag': dumps(destination_account_tag),
+        }
+    )
+    #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
+    request = schema.AuthorizationRequest(
+        tenant=tenant,
+        transaction_tag=transaction_tag,
+        account_tag=account_tag,
+        destination_account_tag=destination_account_tag,
+        destination=destination,
+        timestamp_auth=timestamp_auth,
+    )
+    response = await engine.authorization(request)
+    assert response.authorized is False
+    assert response.authorized_destination is False
+    assert account_tag == response.unauthorized_account_tag
+    assert 'BALANCE_INSUFFICIENT' == response.unauthorized_reason
+    #
+    assert len(mocked_bus.calls) == 1
+    assert {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': '1000',
+                'account_tags': [],
+                'authorized': False,
+                'authorized_destination': False,
+                'balance': 0,
+                'carrier_ip': None,
+                'carriers': [],
+                'destination': '393291234567',
+                'destination_account_tag': '1001',
+                'destination_account_tags': [],
                 'max_available_units': 0,
                 'source': None,
                 'source_ip': None,
@@ -414,6 +534,7 @@ async def test_authorization_failed_account_virtual_balance_insufficient(
         'kwargs': {
             'request': {
                 'account_tag': '1000',
+                'account_tags': [],
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
@@ -421,6 +542,7 @@ async def test_authorization_failed_account_virtual_balance_insufficient(
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': None,
+                'destination_account_tags': [],
                 'max_available_units': 0,
                 'source': None,
                 'source_ip': None,
@@ -527,6 +649,7 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
         'kwargs': {
             'request': {
                 'account_tag': '1000',
+                'account_tags': [],
                 'authorized': True,
                 'authorized_destination': False,
                 'balance': 4,
@@ -534,6 +657,7 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
                 'carriers': ['UDP:carrier1.canyan.io:5060'],
                 'destination': '393291234567',
                 'destination_account_tag': None,
+                'destination_account_tags': [],
                 'max_available_units': 4,
                 'source': None,
                 'source_ip': None,
@@ -637,6 +761,7 @@ async def test_authorization_successful_with_timestamp(engine, graphql, mocked_b
         'kwargs': {
             'request': {
                 'account_tag': '1000',
+                'account_tags': [],
                 'authorized': True,
                 'authorized_destination': False,
                 'balance': 4,
@@ -644,6 +769,7 @@ async def test_authorization_successful_with_timestamp(engine, graphql, mocked_b
                 'carriers': ['UDP:carrier1.canyan.io:5060'],
                 'destination': '393291234567',
                 'destination_account_tag': None,
+                'destination_account_tags': [],
                 'max_available_units': 4,
                 'source': None,
                 'source_ip': None,
@@ -738,6 +864,7 @@ async def test_authorization_failed_account_too_many_running_transactions(
         'kwargs': {
             'request': {
                 'account_tag': '1000',
+                'account_tags': [],
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
@@ -745,6 +872,7 @@ async def test_authorization_failed_account_too_many_running_transactions(
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': None,
+                'destination_account_tags': [],
                 'max_available_units': 0,
                 'source': None,
                 'source_ip': None,
@@ -855,6 +983,7 @@ async def test_authorization_failed_account_and_destination_account_too_many_run
         'kwargs': {
             'request': {
                 'account_tag': '1000',
+                'account_tags': [],
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
@@ -862,6 +991,7 @@ async def test_authorization_failed_account_and_destination_account_too_many_run
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': '1001',
+                'destination_account_tags': [],
                 'max_available_units': 0,
                 'source': None,
                 'source_ip': None,
@@ -959,6 +1089,7 @@ async def test_authorization_failed_destination_account_too_many_running_transac
         'kwargs': {
             'request': {
                 'account_tag': None,
+                'account_tags': [],
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
@@ -966,6 +1097,7 @@ async def test_authorization_failed_destination_account_too_many_running_transac
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': '1001',
+                'destination_account_tags': [],
                 'max_available_units': 0,
                 'source': None,
                 'source_ip': None,
@@ -975,7 +1107,126 @@ async def test_authorization_failed_destination_account_too_many_running_transac
                 'transaction_tag': '100',
                 'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
+            }
+        },
+        'method': MethodName.AUTHORIZATION_TRANSACTION.value,
+        'priority': RPCCallPriority.LOW,
+    } == mocked_bus.calls[0]
 
+
+@pytest.mark.asyncio
+async def test_authorization_successful_with_tags(engine, graphql, mocked_bus):
+    tenant = "default"
+    transaction_tag = "100"
+    account_tag = "1000"
+    destination_account_tag = "1001"
+    destination = "393291234567"
+    #
+    response = await graphql(
+        """
+        mutation {
+            upsertCarrier(
+                tenant:%(tenant)s,
+                carrier_tag:"TESTS",
+                host:"carrier1.canyan.io",
+                port:5060,
+                protocol:UDP
+                active:true
+            ) {
+                id
+            }
+            upsertPricelist(
+                tenant:%(tenant)s,
+                pricelist_tag:"TESTS",
+                currency:EUR
+            ) {
+                id
+            }
+            upsertPricelistRate(
+                tenant:%(tenant)s,
+                pricelist_tag:"TESTS",
+                carrier_tag:"TESTS",
+                prefix:"39"
+                active:true,
+                connect_fee:0,
+                rate:1,
+                rate_increment:1,
+                interval_start:0,
+                description:"TESTS_ALL_DESTINATIONS"
+            ) {
+                id
+            }
+            a1:upsertAccount(
+                tenant: %(tenant)s,
+                account_tag: %(account_tag)s,
+                type: PREPAID,
+                tags: ["A1"],
+                pricelist_tags: ["TESTS"]
+                balance: 20,
+                active: true
+            ) {
+                id
+            }
+            a2:upsertAccount(
+                tenant: %(tenant)s,
+                account_tag: %(destination_account_tag)s,
+                type: PREPAID,
+                tags: ["A2"],
+                pricelist_tags: ["TESTS"]
+                balance: 20,
+                active: true
+            ) {
+                id
+            }
+        }"""
+        % {
+            'tenant': dumps(tenant),
+            'account_tag': dumps(account_tag),
+            'destination_account_tag': dumps(destination_account_tag),
+        }
+    )
+    #
+    timestamp_auth = timezone("UTC").localize(datetime.utcnow())
+    request = schema.AuthorizationRequest(
+        tenant=tenant,
+        transaction_tag=transaction_tag,
+        account_tag=account_tag,
+        source="source",
+        source_ip="source_ip",
+        destination_account_tag=destination_account_tag,
+        destination=destination,
+        carrier_ip="carrier_ip",
+        timestamp_auth=timestamp_auth,
+        tags=["T1"],
+    )
+    response = await engine.authorization(request)
+    assert response.authorized is True
+    #
+    assert len(mocked_bus.calls) == 1
+    # balance is ephemeral, can either by 3 or 4 based on timing of the test
+    assert {
+        'expiration': 10,
+        'kwargs': {
+            'request': {
+                'account_tag': '1000',
+                'account_tags': ['T1', 'A1'],
+                'authorized': True,
+                'authorized_destination': True,
+                'balance': 20,
+                'carrier_ip': "carrier_ip",
+                'carriers': ['UDP:carrier1.canyan.io:5060'],
+                'destination': '393291234567',
+                'destination_account_tag': '1001',
+                'destination_account_tags': ['T1', 'A2'],
+                'max_available_units': 20,
+                'source': "source",
+                'source_ip': "source_ip",
+                'tags': ["T1"],
+                'tenant': 'default',
+                'timestamp_auth': timestamp_auth,
+                'transaction_tag': '100',
+                'unauthorized_reason': None,
+                'unauthorized_account_tag': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
