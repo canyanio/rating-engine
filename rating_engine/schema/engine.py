@@ -141,3 +141,5 @@ class RecordTransactionResponse(BaseModel):
     """Record transaction response"""
 
     ok: bool = False
+    failed_account_tag: Optional[str] = None
+    failed_reason: Optional[str] = None

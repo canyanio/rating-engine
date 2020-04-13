@@ -436,4 +436,74 @@ class EngineService(object):
             request.timestamp_begin = UTC.localize(datetime.utcnow())
         if request.timestamp_end is None:
             request.timestamp_end = UTC.localize(datetime.utcnow())
-        return schema.RecordTransactionResponse()
+        # no account nor destination account specified, give up
+        if request.account_tag is None and request.destination_account_tag is None:
+            return schema.RecordTransactionResponse(ok=False)
+        # get the account and destination account
+        (
+            account,
+            destination_account,
+        ) = await self._api.get_account_and_destination_account_by_id(
+            request.tenant,
+            account_tag=request.account_tag,
+            destination_account_tag=request.destination_account_tag,
+            destination=request.destination,
+        )
+        # check the account
+        if request.account_tag and account is None:
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.account_tag, failed_reason='NOT_FOUND',
+            )
+        elif request.account_tag and account is not None and account['active'] is False:
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.account_tag, failed_reason='NOT_ACTIVE',
+            )
+        # check the destination account
+        if request.destination_account_tag and destination_account is None:
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.destination_account_tag,
+                failed_reason='NOT_FOUND',
+            )
+        elif (
+            request.destination_account_tag
+            and destination_account is not None
+            and destination_account['active'] is False
+        ):
+            return schema.RecordTransactionResponse(
+                failed_account_tag=request.destination_account_tag,
+                failed_reason='NOT_ACTIVE',
+            )
+        # write the db with the Record of transaction
+        for account, _ in ((account, False), (destination_account, True)):
+            if account is None:
+                continue
+            linked_accounts = account.pop('linked_accounts', [])
+            for n, item in enumerate([account] + linked_accounts):
+                transaction = dict(
+                    tenant=request.tenant,
+                    transaction_tag=request.transaction_tag,
+                    account_tag=request.account_tag,
+                    destination_account_tag=request.destination_account_tag,
+                    destination_rate=item.get('destination_rate'),
+                    source=request.source,
+                    source_ip=request.source_ip,
+                    destination=request.destination,
+                    carrier_ip=request.carrier_ip,
+                    tags=request.tags + item['tags'],
+                    timestamp_begin=request.timestamp_begin,
+                    timestamp_end=request.timestamp_end,
+                    primary=(n == 0),
+                )
+                fee, duration = self._rater.get_transaction_fee_and_duration(
+                    transaction=transaction
+                )
+                upsert_transaction = await self._api.upsert_transaction(
+                    request.tenant, item['account_tag'], transaction, duration, fee
+                )
+                if upsert_transaction is None:
+                    return schema.RecordTransactionResponse(
+                        failed_account_tag=item['account_tag'],
+                        failed_reason='INTERNAL_ERROR',
+                    )
+        # return ok
+        return schema.RecordTransactionResponse(ok=True)
