@@ -15,7 +15,7 @@ class AuthorizationRequest(BaseModel):
     source_ip: Optional[str] = None
     destination: Optional[str] = None
     carrier_ip: Optional[str] = None
-    tags: List[str] = []
+    tags: Optional[List[str]] = None
     timestamp_auth: Optional[datetime] = None
 
 
@@ -37,14 +37,14 @@ class AuthorizationTransactionRequest(BaseModel):
     tenant: str = 'default'
     transaction_tag: str
     account_tag: Optional[str] = None
-    account_tags: List[str] = []
+    account_tags: Optional[List[str]] = None
     destination_account_tag: Optional[str] = None
-    destination_account_tags: List[str] = []
+    destination_account_tags: Optional[List[str]] = None
     source: Optional[str] = None
     source_ip: Optional[str] = None
     destination: Optional[str] = None
     carrier_ip: Optional[str] = None
-    tags: List[str] = []
+    tags: Optional[List[str]] = None
     timestamp_auth: datetime
     authorized: bool = False
     authorized_destination: bool = False
@@ -73,7 +73,7 @@ class BeginTransactionRequest(BaseModel):
     source_ip: Optional[str] = None
     destination: Optional[str] = None
     carrier_ip: Optional[str] = None
-    tags: List[str] = []
+    tags: Optional[List[str]] = None
     timestamp_begin: Optional[datetime] = None
 
 
@@ -129,7 +129,7 @@ class RecordTransactionRequest(BaseModel):
     source_ip: Optional[str] = None
     destination: Optional[str] = None
     carrier_ip: Optional[str] = None
-    tags: List[str] = []
+    tags: Optional[List[str]] = None
     authorized: bool = False
     unauthorized_reason: Optional[str] = None
     timestamp_auth: Optional[datetime] = None
