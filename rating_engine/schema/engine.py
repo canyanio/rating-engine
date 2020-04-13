@@ -12,9 +12,11 @@ class AuthorizationRequest(BaseModel):
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
     source: Optional[str] = None
+    source_ip: Optional[str] = None
     destination: Optional[str] = None
-    timestamp_auth: Optional[datetime] = None
+    carrier_ip: Optional[str] = None
     tags: List[str] = []
+    timestamp_auth: Optional[datetime] = None
 
 
 class AuthorizationResponse(BaseModel):
@@ -23,11 +25,10 @@ class AuthorizationResponse(BaseModel):
     authorized: bool = False
     authorized_destination: bool = False
     unauthorized_account_tag: Optional[str] = None
-    unauthorized_account_reason: Optional[str] = None
-    unauthorized_destination_reason: Optional[str] = None
-    max_available_units: int = 0
+    unauthorized_reason: Optional[str] = None
     balance: int = 0
     carriers: List[str] = []
+    max_available_units: int = 0
 
 
 class AuthorizationTransactionRequest(BaseModel):
@@ -38,19 +39,18 @@ class AuthorizationTransactionRequest(BaseModel):
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
     source: Optional[str] = None
+    source_ip: Optional[str] = None
     destination: Optional[str] = None
-    timestamp_auth: datetime
+    carrier_ip: Optional[str] = None
     tags: List[str] = []
-    inbound: bool = False
-    primary: bool = False
+    timestamp_auth: datetime
     authorized: bool = False
     authorized_destination: bool = False
     unauthorized_account_tag: Optional[str] = None
-    unauthorized_account_reason: Optional[str] = None
-    unauthorized_destination_reason: Optional[str] = None
-    max_available_units: int = 0
+    unauthorized_reason: Optional[str] = None
     balance: int = 0
     carriers: List[str] = []
+    max_available_units: int = 0
 
 
 class AuthorizationTransactionResponse(BaseModel):
@@ -71,6 +71,7 @@ class BeginTransactionRequest(BaseModel):
     source_ip: Optional[str] = None
     destination: Optional[str] = None
     carrier_ip: Optional[str] = None
+    tags: List[str] = []
     timestamp_begin: Optional[datetime] = None
 
 
@@ -79,7 +80,7 @@ class BeginTransactionResponse(BaseModel):
 
     ok: bool = False
     failed_account_tag: Optional[str] = None
-    failed_account_reason: Optional[str] = None
+    failed_reason: Optional[str] = None
 
 
 class EndTransactionRequest(BaseModel):
@@ -90,10 +91,6 @@ class EndTransactionRequest(BaseModel):
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
     timestamp_end: Optional[datetime] = None
-    source: Optional[str] = None
-    source_ip: Optional[str] = None
-    destination: Optional[str] = None
-    carrier_ip: Optional[str] = None
 
 
 class EndTransactionResponse(BaseModel):
@@ -101,7 +98,7 @@ class EndTransactionResponse(BaseModel):
 
     ok: bool = False
     failed_account_tag: Optional[str] = None
-    failed_account_reason: Optional[str] = None
+    failed_reason: Optional[str] = None
 
 
 class RollbackTransactionRequest(BaseModel):
@@ -111,10 +108,6 @@ class RollbackTransactionRequest(BaseModel):
     transaction_tag: str
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
-    source: Optional[str] = None
-    source_ip: Optional[str] = None
-    destination: Optional[str] = None
-    carrier_ip: Optional[str] = None
 
 
 class RollbackTransactionResponse(BaseModel):
@@ -131,7 +124,10 @@ class RecordTransactionRequest(BaseModel):
     account_tag: Optional[str] = None
     destination_account_tag: Optional[str] = None
     source: Optional[str] = None
+    source_ip: Optional[str] = None
     destination: Optional[str] = None
+    carrier_ip: Optional[str] = None
+    tags: List[str] = []
     authorized: bool = False
     unauthorized_reason: Optional[str] = None
     timestamp_auth: Optional[datetime] = None

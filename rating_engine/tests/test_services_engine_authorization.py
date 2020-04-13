@@ -52,7 +52,7 @@ async def test_authorization_failed_account_not_found(engine, mocked_bus):
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'NOT_FOUND' == response.unauthorized_account_reason
+    assert 'NOT_FOUND' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 0
 
@@ -90,7 +90,7 @@ async def test_authorization_failed_account_not_active(engine, graphql, mocked_b
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'NOT_ACTIVE' == response.unauthorized_account_reason
+    assert 'NOT_ACTIVE' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 0
 
@@ -131,7 +131,7 @@ async def test_authorization_failed_unreacheable_destination(
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'UNREACHEABLE_DESTINATION' == response.unauthorized_account_reason
+    assert 'UNREACHEABLE_DESTINATION' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 0
 
@@ -153,7 +153,7 @@ async def test_authorization_failed_destination_account_not_found(engine, mocked
     assert response.authorized is False
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
-    assert 'NOT_FOUND' == response.unauthorized_account_reason
+    assert 'NOT_FOUND' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 0
 
@@ -193,7 +193,7 @@ async def test_authorization_failed_destination_account_not_active(
     assert response.authorized is False
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
-    assert 'NOT_ACTIVE' == response.unauthorized_account_reason
+    assert 'NOT_ACTIVE' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 0
 
@@ -219,7 +219,7 @@ async def test_authorization_failed_account_and_destination_account_not_found(
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'NOT_FOUND' == response.unauthorized_account_reason
+    assert 'NOT_FOUND' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 0
 
@@ -293,10 +293,10 @@ async def test_authorization_failed_account_balance_insufficient(
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'BALANCE_INSUFFICIENT' == response.unauthorized_account_reason
+    assert 'BALANCE_INSUFFICIENT' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 1
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -304,25 +304,24 @@ async def test_authorization_failed_account_balance_insufficient(
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
+                'carrier_ip': None,
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': None,
-                'inbound': False,
                 'max_available_units': 0,
-                'primary': True,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]
 
 
 @pytest.mark.asyncio
@@ -407,10 +406,10 @@ async def test_authorization_failed_account_virtual_balance_insufficient(
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'BALANCE_INSUFFICIENT' == response.unauthorized_account_reason
+    assert 'BALANCE_INSUFFICIENT' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 1
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -418,25 +417,24 @@ async def test_authorization_failed_account_virtual_balance_insufficient(
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
+                'carrier_ip': None,
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': None,
-                'inbound': False,
                 'max_available_units': 0,
-                'primary': True,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]
 
 
 @pytest.mark.asyncio
@@ -524,7 +522,7 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
     # balance is ephemeral, can either by 3 or 4 based on timing of the test
     assert mocked_bus.calls[0]['kwargs']['request']['balance'] in (3, 4)
     mocked_bus.calls[0]['kwargs']['request']['balance'] = 4
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -532,25 +530,24 @@ async def test_authorization_successful_account_virtual_balance_sufficient(
                 'authorized': True,
                 'authorized_destination': False,
                 'balance': 4,
+                'carrier_ip': None,
                 'carriers': ['UDP:carrier1.canyan.io:5060'],
                 'destination': '393291234567',
                 'destination_account_tag': None,
-                'inbound': False,
-                'max_available_units': 0,
-                'primary': True,
+                'max_available_units': 4,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]
 
 
 @pytest.mark.asyncio
@@ -635,7 +632,7 @@ async def test_authorization_successful_with_timestamp(engine, graphql, mocked_b
     # balance is ephemeral, can either by 3 or 4 based on timing of the test
     assert mocked_bus.calls[0]['kwargs']['request']['balance'] in (3, 4)
     mocked_bus.calls[0]['kwargs']['request']['balance'] = 4
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -643,25 +640,24 @@ async def test_authorization_successful_with_timestamp(engine, graphql, mocked_b
                 'authorized': True,
                 'authorized_destination': False,
                 'balance': 4,
+                'carrier_ip': None,
                 'carriers': ['UDP:carrier1.canyan.io:5060'],
                 'destination': '393291234567',
                 'destination_account_tag': None,
-                'inbound': False,
-                'max_available_units': 0,
-                'primary': True,
+                'max_available_units': 4,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]
 
 
 @pytest.mark.asyncio
@@ -734,10 +730,10 @@ async def test_authorization_failed_account_too_many_running_transactions(
     assert response.authorized is False
     assert response.authorized_destination is False
     assert account_tag == response.unauthorized_account_tag
-    assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_account_reason
+    assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 1
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -745,25 +741,24 @@ async def test_authorization_failed_account_too_many_running_transactions(
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
+                'carrier_ip': None,
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': None,
-                'inbound': False,
                 'max_available_units': 0,
-                'primary': True,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]
 
 
 @pytest.mark.asyncio
@@ -852,10 +847,10 @@ async def test_authorization_failed_account_and_destination_account_too_many_run
     assert response.authorized is False
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
-    assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_account_reason
+    assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 1
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -863,25 +858,24 @@ async def test_authorization_failed_account_and_destination_account_too_many_run
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
+                'carrier_ip': None,
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': '1001',
-                'inbound': False,
                 'max_available_units': 0,
-                'primary': True,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]
 
 
 @pytest.mark.asyncio
@@ -957,10 +951,10 @@ async def test_authorization_failed_destination_account_too_many_running_transac
     assert response.authorized is False
     assert response.authorized_destination is False
     assert destination_account_tag == response.unauthorized_account_tag
-    assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_account_reason
+    assert 'TOO_MANY_RUNNING_TRANSACTIONS' == response.unauthorized_reason
     #
     assert len(mocked_bus.calls) == 1
-    assert mocked_bus.calls[0] == {
+    assert {
         'expiration': 10,
         'kwargs': {
             'request': {
@@ -968,22 +962,22 @@ async def test_authorization_failed_destination_account_too_many_running_transac
                 'authorized': False,
                 'authorized_destination': False,
                 'balance': 0,
+                'carrier_ip': None,
                 'carriers': [],
                 'destination': '393291234567',
                 'destination_account_tag': '1001',
-                'inbound': False,
                 'max_available_units': 0,
-                'primary': True,
                 'source': None,
+                'source_ip': None,
                 'tags': [],
                 'tenant': 'default',
                 'timestamp_auth': timestamp_auth,
                 'transaction_tag': '100',
-                'unauthorized_account_reason': None,
+                'unauthorized_reason': None,
                 'unauthorized_account_tag': None,
-                'unauthorized_destination_reason': None,
+
             }
         },
         'method': MethodName.AUTHORIZATION_TRANSACTION.value,
         'priority': RPCCallPriority.LOW,
-    }
+    } == mocked_bus.calls[0]

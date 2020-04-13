@@ -38,7 +38,7 @@ async def test_end_transaction_failed_account_not_found(engine):
     response = await engine.end_transaction(request)
     assert response.ok is False
     assert account_tag == response.failed_account_tag
-    assert 'NOT_FOUND' == response.failed_account_reason
+    assert 'NOT_FOUND' == response.failed_reason
 
 
 @pytest.mark.asyncio
@@ -55,7 +55,7 @@ async def test_end_transaction_failed_destination_account_not_found(engine):
     response = await engine.end_transaction(request)
     assert response.ok is False
     assert destination_account_tag == response.failed_account_tag
-    assert 'NOT_FOUND' == response.failed_account_reason
+    assert 'NOT_FOUND' == response.failed_reason
 
 
 @pytest.mark.asyncio
@@ -74,7 +74,7 @@ async def test_end_transaction_failed_account_and_destination_account_not_found(
     response = await engine.end_transaction(request)
     assert response.ok is False
     assert account_tag == response.failed_account_tag
-    assert 'NOT_FOUND' == response.failed_account_reason
+    assert 'NOT_FOUND' == response.failed_reason
 
 
 @pytest.mark.asyncio
@@ -331,7 +331,7 @@ async def test_end_transaction_with_transaction_id_internal_error(engine, graphq
     request = schema.EndTransactionRequest(transaction_tag=transaction_tag)
     result = await engine.end_transaction(request)
     assert result == schema.EndTransactionResponse(
-        ok=False, failed_account_tag='1000', failed_account_reason='INTERNAL_ERROR'
+        ok=False, failed_account_tag='1000', failed_reason='INTERNAL_ERROR'
     )
 
 
@@ -456,7 +456,7 @@ async def test_end_transaction_with_transaction_id_internal_error_upsert(
     request = schema.EndTransactionRequest(transaction_tag=transaction_tag)
     result = await engine.end_transaction(request)
     assert result == schema.EndTransactionResponse(
-        ok=False, failed_account_tag='1000', failed_account_reason='INTERNAL_ERROR'
+        ok=False, failed_account_tag='1000', failed_reason='INTERNAL_ERROR'
     )
 
 
@@ -581,5 +581,5 @@ async def test_end_transaction_with_transaction_id_internal_error_commit(
     request = schema.EndTransactionRequest(transaction_tag=transaction_tag)
     result = await engine.end_transaction(request)
     assert result == schema.EndTransactionResponse(
-        ok=False, failed_account_tag='1000', failed_account_reason='INTERNAL_ERROR'
+        ok=False, failed_account_tag='1000', failed_reason='INTERNAL_ERROR'
     )
