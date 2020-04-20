@@ -38,6 +38,8 @@ class APIService(object):
         notification_email
         notification_mobile
         max_concurrent_transactions
+        max_inbound_transactions
+        max_outbound_transactions
         running_transactions {
             destination_rate {
                 carrier_tag
@@ -73,6 +75,8 @@ class APIService(object):
             notification_email
             notification_mobile
             max_concurrent_transactions
+            max_inbound_transactions
+            max_outbound_transactions
             running_transactions {
                 destination_rate {
                     carrier_tag

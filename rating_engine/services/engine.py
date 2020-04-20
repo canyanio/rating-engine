@@ -130,6 +130,36 @@ class EngineService(object):
                             unauthorized_reason='TOO_MANY_RUNNING_TRANSACTIONS',
                         )
                         break
+                # verify the max_inbound_transactions attribute
+                if item['max_inbound_transactions'] is not None:
+                    inbound_transactions = tuple(
+                        filter(lambda x: x.get('inbound'), item['running_transactions'])
+                    )
+                    account_authorized = item['max_inbound_transactions'] > len(
+                        inbound_transactions
+                    )
+                    if account_authorized is False:
+                        authorization_response = schema.AuthorizationResponse(
+                            unauthorized_account_tag=item['account_tag'],
+                            unauthorized_reason='TOO_MANY_RUNNING_INBOUND_TRANSACTIONS',
+                        )
+                        break
+                # verify the max_outbound_transactions attribute
+                if item['max_outbound_transactions'] is not None:
+                    outbound_transactions = tuple(
+                        filter(
+                            lambda x: not x.get('inbound'), item['running_transactions']
+                        )
+                    )
+                    account_authorized = item['max_outbound_transactions'] > len(
+                        outbound_transactions
+                    )
+                    if account_authorized is False:
+                        authorization_response = schema.AuthorizationResponse(
+                            unauthorized_account_tag=item['account_tag'],
+                            unauthorized_reason='TOO_MANY_RUNNING_OUTBOUND_TRANSACTIONS',
+                        )
+                        break
                 # calculate authorization and max_available_units
                 if not inbound and item['type'] == 'PREPAID':
                     destination_rate = item['destination_rate']
