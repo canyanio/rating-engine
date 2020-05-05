@@ -204,7 +204,7 @@ class EngineService(object):
             carriers=authorization_response.carriers,
             max_available_units=authorization_response.max_available_units,
         )
-        await self._bus.rpc_call(
+        await self._bus.rpc_call_async(
             MethodName.AUTHORIZATION_TRANSACTION.value,
             dict(request=auth_tx_request.dict()),
             priority=RPCCallPriority.LOW,

@@ -43,6 +43,9 @@ class MockedBus(object):
             )
         )
 
+    async def rpc_call_async(self, *args, **kw):
+        return await self.rpc_call(*args, **kw)
+
     async def rpc_register(self, method: str, func: Callable, auto_delete: bool = True):
         pass
 
