@@ -56,6 +56,24 @@ async def test_app_authorization_transaction(app):
 
 
 @pytest.mark.asyncio
+async def test_app_authorization_transaction_async(app):
+    bus = bus_service.BusService(messagebus_uri=app.config['messagebus_uri'])
+    await bus.connect()
+    #
+    request = schema.AuthorizationTransactionRequest(
+        transaction_tag="100", timestamp_auth=datetime.utcnow()
+    )
+    response = await bus.rpc_call_async(
+        method=MethodName.AUTHORIZATION_TRANSACTION.value,
+        kwargs={'request': dict(request)},
+        expiration=60,
+    )
+    assert response is True
+    #
+    await bus.close()
+
+
+@pytest.mark.asyncio
 async def test_app_authorization_transaction_invalid_data(app):
     bus = bus_service.BusService(messagebus_uri=app.config['messagebus_uri'])
     await bus.connect()
